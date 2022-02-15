@@ -4,8 +4,10 @@ import areRecordsEqual from '../../utils/fp/areRecordsEqual'
 import { logError } from '../../utils/common'
 import type { Database, Model, TableName } from '../..'
 
-import { prepareMarkAsSynced } from './helpers'
-import type { SyncLocalChanges, SyncRejectedIds } from '../index'
+import { prepareMarkAsSynced, prepareCreateMapping } from './helpers'
+import type { SyncLocalChanges, SyncRejectedIds, SyncPublishedRecords } from '../index'
+import { createDebuggerStatement } from 'typescript'
+import { consoleTestResultHandler } from 'tslint/lib/test'
 
 const recordsToMarkAsSynced = (
   { changes, affectedRecords }: SyncLocalChanges,
@@ -35,6 +37,29 @@ const recordsToMarkAsSynced = (
   return syncedRecords
 }
 
+const recordsToSaveMapping = (
+  { changes, affectedRecords}: SyncLocalChanges,
+  published: SyncPublishedRecords
+): Model[] => {
+  const mappings = [];
+  if (published) {
+    Object.keys(changes).forEach((table) => {
+      const { created } = changes[(table: any)];
+      const publishedIds = published[(table: any)];
+  
+      if (publishedIds?.length > 0) {
+        created.forEach((raw, index) => {
+          const mapping = { localId: raw.id, remoteId: publishedIds[index], table: table};
+          mappings.push(mapping)
+        })
+      }
+
+    });
+  }
+  console.log('MAPPINGS ' + JSON.stringify(mappings));
+  return mappings
+}
+
 const destroyDeletedRecords = (
   db: Database,
   { changes }: SyncLocalChanges,
@@ -52,12 +77,14 @@ export default function markLocalChangesAsSynced(
   db: Database,
   syncedLocalChanges: SyncLocalChanges,
   rejectedIds?: ?SyncRejectedIds,
+  published?: ?SyncPublishedRecords
 ): Promise<void> {
   return db.write(async () => {
     // update and destroy records concurrently
     await Promise.all([
       db.batch(
-        recordsToMarkAsSynced(syncedLocalChanges, rejectedIds || {}).map(prepareMarkAsSynced),
+        ...recordsToMarkAsSynced(syncedLocalChanges, rejectedIds || {}).map(prepareMarkAsSynced),
+        ...recordsToSaveMapping(syncedLocalChanges, published).map(mapping => (prepareCreateMapping(db, mapping.table, mapping.remoteId, mapping.localId)))
       ),
       ...destroyDeletedRecords(db, syncedLocalChanges, rejectedIds || {}),
     ])

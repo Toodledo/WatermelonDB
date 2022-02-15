@@ -43,6 +43,7 @@ export type AppSchemaSpec = $Exact<{
   version: number,
   tables: TableSchema[],
   unsafeSql?: (string, AppSchemaUnsafeSqlKind) => string,
+  idMapping?: boolean
 }>
 
 export type AppSchema = $RE<{
@@ -59,9 +60,14 @@ export function columnName(name: string): ColumnName {
   return name
 }
 
-export function appSchema({ version, tables: tableList, unsafeSql }: AppSchemaSpec): AppSchema {
+export function appSchema({ version, tables: tableList, unsafeSql, idMapping }: AppSchemaSpec): AppSchema {
   if (process.env.NODE_ENV !== 'production') {
     invariant(version > 0, `Schema version must be greater than 0`)
+  }
+
+  if (idMapping) {
+    const IdMappingSchema = require('../Database/IdMapping').IdMappingSchema;
+    tableList.push(IdMappingSchema);
   }
   const tables: TableMap = tableList.reduce((map, table) => {
     if (process.env.NODE_ENV !== 'production') {

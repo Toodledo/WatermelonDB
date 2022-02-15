@@ -8,7 +8,7 @@ import { noop } from '../utils/fp'
 import type { DatabaseAdapter, BatchOperation } from '../adapters/type'
 import DatabaseAdapterCompat from '../adapters/compat'
 import type Model from '../Model'
-import type Collection, { CollectionChangeSet } from '../Collection'
+import Collection, { CollectionChangeSet } from '../Collection'
 import type { TableName, AppSchema } from '../Schema'
 
 import CollectionMap from './CollectionMap'
@@ -18,6 +18,7 @@ import WorkQueue, { type ReaderInterface, type WriterInterface } from './WorkQue
 type DatabaseProps = $Exact<{
   adapter: DatabaseAdapter,
   modelClasses: Array<Class<Model>>,
+  idMapping: Boolean
 }>
 
 let experimentalAllowsFatalError = false
@@ -33,6 +34,10 @@ export default class Database {
 
   collections: CollectionMap
 
+  idMappingTable: Collection
+
+  useIdMapping: Boolean
+
   _workQueue: WorkQueue = new WorkQueue(this)
 
   // (experimental) if true, Database is in a broken state and should not be used anymore
@@ -41,7 +46,7 @@ export default class Database {
   _localStorage: LocalStorage
 
   constructor(options: DatabaseProps): void {
-    const { adapter, modelClasses } = options
+    const { adapter, modelClasses, idMapping } = options
     if (process.env.NODE_ENV !== 'production') {
       invariant(adapter, `Missing adapter parameter for new Database()`)
       invariant(
@@ -56,9 +61,14 @@ export default class Database {
           'new Database({ actionsEnabled: true }) option is unnecessary (actions are always enabled)',
         )
     }
+    if (idMapping) {
+      const IdMapping = require('./IdMapping').default;
+      this.idMappingTable = new IdMapping(this);
+      this.useIdMapping = true;
+    }
     this.adapter = new DatabaseAdapterCompat(adapter)
     this.schema = adapter.schema
-    this.collections = new CollectionMap(this, modelClasses)
+    this.collections = new CollectionMap(this, modelClasses) 
   }
 
   get<T: Model>(tableName: TableName<T>): Collection<T> {
@@ -146,7 +156,12 @@ export default class Database {
 
     changeNotificationsEntries.forEach((notification) => {
       const [table, changeSet]: [TableName<any>, CollectionChangeSet<any>] = (notification: any)
-      this.collections.get(table)._applyChangesToCache(changeSet)
+      if (table == 'id_mapping') {
+        this.idMappingTable._collection._applyChangesToCache(changeSet);
+      }
+      else {
+        this.collections.get(table)._applyChangesToCache(changeSet)
+      }
     })
 
     const databaseChangeNotifySubscribers = ([tables, subscriber]): void => {
@@ -158,7 +173,12 @@ export default class Database {
 
     changeNotificationsEntries.forEach((notification) => {
       const [table, changeSet]: [TableName<any>, CollectionChangeSet<any>] = (notification: any)
-      this.collections.get(table)._notify(changeSet)
+      if (table == 'id_mapping') {
+        this.idMappingTable._collection._notify(changeSet);
+      }
+      else {
+        this.collections.get(table)._notify(changeSet)
+      }
     })
 
     return undefined // shuts up flow

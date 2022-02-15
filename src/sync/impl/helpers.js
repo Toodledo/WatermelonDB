@@ -2,7 +2,7 @@
 
 import { values } from '../../utils/fp'
 
-import { invariant } from '../../utils/common'
+import { invariant, randomId } from '../../utils/common'
 
 import type { Model, Collection, Database } from '../..'
 import { type RawRecord, type DirtyRaw, sanitizedRaw } from '../../RawRecord'
@@ -48,8 +48,25 @@ export function prepareCreateFromRaw<T: Model>(collection: Collection<T>, dirtyR
     !Object.prototype.hasOwnProperty.call(dirtyRaw, '__proto__'),
     'Malicious dirtyRaw detected - contains a __proto__ key',
   )
+  const { database, table, modelClass } = collection;
+  const useIdMapping = database.useIdMapping;
   const raw = Object.assign({}, dirtyRaw, { _status: 'synced', _changed: '' }) // faster than object spread
-  return collection.prepareCreateFromDirtyRaw(raw)
+
+  // if we're using id mapping, then we want the client to generate a random local ID
+  const remoteId = raw.id;
+  if (useIdMapping) {
+    raw.id = randomId();
+  }
+  const newRecord = collection.prepareCreateFromDirtyRaw(raw);
+
+  if (useIdMapping) {
+    const { database, table } = collection
+    const mappingRecord = prepareCreateMapping(database, table, remoteId, newRecord.id);
+    return [newRecord, mappingRecord];
+  }
+  else {
+    return [newRecord];
+  }
 }
 
 export function prepareUpdateFromRaw<T: Model>(
@@ -89,6 +106,11 @@ export function prepareUpdateFromRaw<T: Model>(
       })
     }
   })
+}
+
+export function prepareCreateMapping<T: Model>(database: Database, table:any, remoteId: String, localId: String): T {
+  const mappingRecord = database.idMappingTable.prepareCreateMapping(localId, remoteId, table);
+  return mappingRecord;
 }
 
 export function prepareMarkAsSynced<T: Model>(record: T): T {

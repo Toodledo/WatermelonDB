@@ -164,4 +164,12 @@ describe('Relation', () => {
     const relation = new Relation(model, 't1', 'c1', { isImmutable: false })
     expect(relation.constructor._wmelonTag).toBe('relation')
   })
+  it('create a list of relations on the model', () => {
+    const { tasks } = mockDatabase()
+    const model = new MockTask(tasks, {})
+    const relation = new Relation(model, 't1', 'c1', { isImmutable: false })
+
+    expect(model.relations[0]._relationTableName).toBe('t1');
+    expect(model.relations[0]._columnName).toBe('c1');
+  })
 })

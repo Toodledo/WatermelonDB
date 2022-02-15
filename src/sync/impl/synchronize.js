@@ -13,6 +13,7 @@ import {
 } from './index'
 import { ensureSameDatabase, isChangeSetEmpty, changeSetCount } from './helpers'
 import { type SyncArgs, type Timestamp } from '../index'
+import { mapIdsForPushedChanges } from './idMapper'
 
 export default async function synchronize({
   database,
@@ -26,6 +27,7 @@ export default async function synchronize({
   _unsafeBatchPerCollection,
   unsafeTurbo,
 }: SyncArgs): Promise<void> {
+  const useIdMapping = database.useIdMapping
   const resetCount = database._resetCount
   log && (log.startedAt = new Date())
   log && (log.phase = 'starting')
@@ -123,13 +125,17 @@ export default async function synchronize({
     ensureSameDatabase(database, resetCount)
     if (!isChangeSetEmpty(localChanges.changes)) {
       log && (log.phase = 'ready to push')
+
+      const changes = (useIdMapping) ?         
+        await mapIdsForPushedChanges(database, localChanges.changes): 
+        localChanges.changes 
       const pushResult =
-        (await pushChanges({ changes: localChanges.changes, lastPulledAt: newLastPulledAt })) || {}
+        (await pushChanges({ changes: changes, lastPulledAt: newLastPulledAt })) || {}
       log && (log.phase = 'pushed')
       log && (log.rejectedIds = pushResult.experimentalRejectedIds)
 
       ensureSameDatabase(database, resetCount)
-      await markLocalChangesAsSynced(database, localChanges, pushResult.experimentalRejectedIds)
+      await markLocalChangesAsSynced(database, localChanges, pushResult.experimentalRejectedIds, pushResult.published)
       log && (log.phase = 'marked local changes as synced')
     }
   } else {

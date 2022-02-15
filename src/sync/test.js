@@ -3,7 +3,7 @@ import { change, times, map, length, omit } from 'rambdax'
 import { skip as skip$ } from 'rxjs/operators'
 import { noop } from '../utils/fp'
 import { randomId } from '../utils/common'
-import { mockDatabase, testSchema } from '../__tests__/testModels'
+import { mockDatabase, testSchema, mockDatabaseWithIdMapping } from '../__tests__/testModels'
 import { expectToRejectWithMessage } from '../__tests__/utils'
 import { sanitizedRaw } from '../RawRecord'
 import { schemaMigrations, createTable, addColumns } from '../Schema/migrations'
@@ -19,6 +19,7 @@ import {
   setLastPulledSchemaVersion,
 } from './impl'
 import { resolveConflict, isChangeSetEmpty } from './impl/helpers'
+import { consoleTestResultHandler } from 'tslint/lib/test'
 
 describe('Conflict resolution', () => {
   it('can resolve per-column conflicts', () => {
@@ -46,6 +47,8 @@ describe('Conflict resolution', () => {
 })
 
 const makeDatabase = () => mockDatabase()
+
+const makeDatabaseWithIdMapping = () => mockDatabaseWithIdMapping()
 
 const prepareCreateFromRaw = (collection, dirtyRaw) =>
   collection.prepareCreate((record) => {
@@ -1695,5 +1698,234 @@ describe('synchronize', () => {
         /Last synced schema version \(11\) is greater than current schema version \(10\)/,
       )
     })
+  })
+})
+
+describe('idmapping', () => {
+  it('can save remote ids of new records created by client', async () => {
+    const { database } = makeDatabaseWithIdMapping();
+
+    await makeLocalChanges(database);
+
+    const log = {}
+    await synchronize({
+      database,
+      pullChanges: jest.fn(emptyPull()),
+      pushChanges: jest.fn(async () => {
+        return {
+          published: {
+            mock_projects: ['project2', 'project1'],
+            mock_tasks: ['task1'],
+            mock_comments: ['comment1'],
+          }
+        }
+      }),
+      log,
+    })
+
+    const mapping = await database.idMappingTable.getMappingsForLocalIds(['pCreated1', 'pCreated2', 'tCreated', 'cCreated']);
+    expect(mapping).toEqual(
+      {pCreated1: 'project1', pCreated2: 'project2', tCreated: 'task1', cCreated: 'comment1'}
+    )
+  })
+  it('can create new local ids from new records', async () => {
+    const { database, projects, tasks } = makeDatabaseWithIdMapping()
+
+    await makeLocalChanges(database)
+    await testApplyRemoteChanges(database, {
+      mock_projects: {
+        // create / doesn't exist - create
+        created: [{ id: 'new_project', name: 'remoteproject' }],
+      },
+      mock_tasks: {
+        created: [{ id: 'new_task', name: 'remotetask' }],
+      }
+    })
+
+    const localprojectid = await database.idMappingTable.getLocalId('new_project');
+    const localtaskid = await database.idMappingTable.getLocalId('new_task');
+
+    await expectSyncedAndMatches(projects, localprojectid, { name: 'remoteproject' })
+    await expectSyncedAndMatches(tasks, localtaskid, { name: 'remotetask' })
+  })
+  it('can update synced records from the server using remote ids', async () => {
+
+    const { database, projects, tasks } = makeDatabaseWithIdMapping()
+
+    const pullChanges = jest.fn(async () => ({
+      changes: makeChangeSet({
+        mock_projects: {
+          created: [{ id: 'new_project', name: 'remoteproject' }],
+        },
+        mock_tasks: {
+          created: [{ id: 'new_task', name: 'remotetask' }]
+        },
+      }),
+      timestamp: 1500,
+    }))
+    await synchronize({ database, pullChanges, pushChanges: jest.fn() })
+
+    const localprojectid = await database.idMappingTable.getLocalId('new_project');
+    const localtaskid = await database.idMappingTable.getLocalId('new_task');
+
+    await expectSyncedAndMatches(projects, localprojectid, { name: 'remoteproject' })
+    await expectSyncedAndMatches(tasks, localtaskid, { name: 'remotetask' })
+
+    const pullUpdates = jest.fn(async () => ({
+      changes: makeChangeSet({
+        mock_projects: {
+          updated: [{ id: 'new_project', name: 'updated project' }],
+        },
+        mock_tasks: {
+          updated: [{ id: 'new_task', name: 'updated task' }]
+        },
+      }),
+      timestamp: 1600,
+    }))
+
+    await synchronize({ database, pullChanges: pullUpdates, pushChanges: jest.fn() })
+
+    await expectSyncedAndMatches(projects, localprojectid, { name: 'updated project' })
+    await expectSyncedAndMatches(tasks, localtaskid, { name: 'updated task' })
+  })
+  it('can deleted synced records using remote ids', async () => {
+
+    const { database, projects, tasks } = makeDatabaseWithIdMapping()
+
+    const pullChanges = jest.fn(async () => ({
+      changes: makeChangeSet({
+        mock_projects: {
+          created: [{ id: 'new_project', name: 'remoteproject' }],
+        },
+        mock_tasks: {
+          created: [{ id: 'new_task', name: 'remotetask' }]
+        },
+      }),
+      timestamp: 1500,
+    }))
+    await synchronize({ database, pullChanges, pushChanges: jest.fn() })
+
+    const localprojectid = await database.idMappingTable.getLocalId('new_project');
+    const localtaskid = await database.idMappingTable.getLocalId('new_task');
+
+    await expectSyncedAndMatches(projects, localprojectid, { name: 'remoteproject' })
+    await expectSyncedAndMatches(tasks, localtaskid, { name: 'remotetask' })
+
+    const count = await database.get('mock_projects').query().fetchCount();
+    const mappings = await database.idMappingTable.getAllMappings();
+
+    const pullUpdates = jest.fn(async () => ({
+      changes: makeChangeSet({
+        mock_projects: {
+          deleted: ['new_project'],
+        },
+        mock_tasks: {
+          deleted: ['new_task']
+        },
+      }),
+      timestamp: 1600,
+    }))
+
+    await synchronize({ database, pullChanges: pullUpdates, pushChanges: jest.fn() })
+    await expectDoesNotExist(projects, localprojectid);
+    await expectDoesNotExist(projects, 'new_project');
+    await expectDoesNotExist(tasks, localtaskid);
+    await expectDoesNotExist(tasks, 'new_task');
+  })
+  it('can create new records on the client then update from the server', async () => {
+    const { database, projects, tasks, comments } = makeDatabaseWithIdMapping();
+
+    await makeLocalChanges(database);
+
+    const log = {}
+    await synchronize({
+      database,
+      pullChanges: jest.fn(emptyPull()),
+      pushChanges: jest.fn(async () => {
+        return {
+          published: {
+            mock_projects: ['project2', 'project1'],
+            mock_tasks: ['task1'],
+            mock_comments: ['comment1'],
+          }
+        }
+      }),
+      log,
+    })
+
+    const mapping = await database.idMappingTable.getMappingsForLocalIds(['pCreated1', 'pCreated2', 'tCreated', 'cCreated']);
+    expect(mapping).toEqual(
+      {pCreated1: 'project1', pCreated2: 'project2', tCreated: 'task1', cCreated: 'comment1'}
+    )
+
+    const pullUpdates = jest.fn(async () => ({
+      changes: makeChangeSet({
+        mock_projects: {
+          updated: [{ id: 'project1', name: 'updated project' }, {id: 'project2', name: 'updated project 2'}],
+        },
+        mock_tasks: {
+          updated: [{ id: 'task1', name: 'updated task' }]
+        }
+      }),
+      timestamp: 1600,
+    }))
+
+    await synchronize({ database, pullChanges: pullUpdates, pushChanges: jest.fn() })
+    await expectSyncedAndMatches(projects, 'pCreated1', { name: 'updated project' })
+    await expectSyncedAndMatches(tasks, 'tCreated', { name: 'updated task' })
+  })
+  it('can create new records on the client then update from the client', async () => {
+    const { database, projects, tasks, comments } = makeDatabaseWithIdMapping();
+
+    const {
+      pCreated1,
+      pCreated2,
+      tCreated,
+      cCreated
+    } = await makeLocalChanges(database)
+
+    const pullChanges = jest.fn(emptyPull());
+    const log = {}
+    await synchronize({
+      database,
+      pullChanges,
+      pushChanges: jest.fn(async () => {
+        return {
+          published: {
+            mock_projects: ['project2', 'project1'],
+            mock_tasks: ['task1'],
+            mock_comments: ['comment1'],
+          }
+        }
+      }),
+      log,
+    })
+
+    // simulate user making local changes to the records
+  //   await database.write(async () => {
+  //     const project = await pCreated1.update((p) => {
+  //       p.name = 'updated on client'
+  //     })
+
+  //     const del = await tCreated.markAsDeleted()
+  //     return project;
+
+    // await database.write(() => tCreated.markAsDeleted())
+
+    // const pushChanges = jest.fn();
+    // await synchronize({ database, pullChanges, pushChanges })
+
+    // expect(pushChanges).toHaveBeenCalledWith({ changes: {
+    //   mock_projects: {
+    //     updated: {
+    //       id: 'project1',
+    //       name: 'updated on client'
+    //     }
+    //   },
+    //   mock_tasks: {
+    //     deleted: ['task1']
+    //   }
+    // }, lastPulledAt: 1500 })
+
   })
 })

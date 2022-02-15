@@ -30,9 +30,8 @@ const idsForChanges = ({ created, updated, deleted }: SyncTableChangeSet): Recor
 const fetchRecordsForChanges = <T: Model>(
   collection: Collection<T>,
   changes: SyncTableChangeSet,
+  ids: RecordId[]
 ): Promise<T[]> => {
-  const ids = idsForChanges(changes)
-
   if (ids.length) {
     return collection.query(Q.where(columnName('id'), Q.oneOf(ids))).fetch()
   }
@@ -40,7 +39,11 @@ const fetchRecordsForChanges = <T: Model>(
   return Promise.resolve([])
 }
 
-const findRecord = <T: Model>(id: RecordId, list: T[]): T | null => {
+const findRecord = <T: Model>(id: RecordId, list: T[], remoteToLocalIdMap:Object): T | null => {
+  // if we are using id mapping, then first get the localid
+  if (remoteToLocalIdMap) {
+    id = remoteToLocalIdMap[id];
+  }
   // perf-critical
   for (let i = 0, len = list.length; i < len; i += 1) {
     if (list[i]._raw.id === id) {
@@ -56,17 +59,33 @@ type RecordsToApplyRemoteChangesTo<T: Model> = {
   recordsToDestroy: T[],
   locallyDeletedIds: RecordId[],
   deletedRecordsToDestroy: RecordId[],
+  remoteToLocalIdMap: Object
 }
 async function recordsToApplyRemoteChangesTo<T: Model>(
   collection: Collection<T>,
   changes: SyncTableChangeSet,
 ): Promise<RecordsToApplyRemoteChangesTo<T>> {
   const { database, table } = collection
-  const { deleted: deletedIds } = changes
+  let { deleted: deletedIds } = changes
 
+  // these are remoteIDs
+  let ids = idsForChanges(changes);
+
+  // if we are using IdMapping, then convert to local ids
+  const remoteToLocalIdMap = {};
+  if (database.useIdMapping) {
+    const idMappings = await database.idMappingTable.getMappingsForRemoteIds(ids);
+    // get local IDs to search for
+    ids = idMappings.map(id=>{ 
+      remoteToLocalIdMap[id.remoteId] = id.localId;
+      return id.localId
+    });
+
+    deletedIds = await database.idMappingTable.getLocalIds(deletedIds);
+  }
   const [records, locallyDeletedIds] = await Promise.all([
-    fetchRecordsForChanges(collection, changes),
-    database.adapter.getDeletedRecords(table),
+    fetchRecordsForChanges(collection, changes, ids),
+    database.adapter.getDeletedRecords(table)
   ])
 
   return {
@@ -75,6 +94,7 @@ async function recordsToApplyRemoteChangesTo<T: Model>(
     locallyDeletedIds,
     recordsToDestroy: records.filter((record) => deletedIds.includes(record.id)),
     deletedRecordsToDestroy: locallyDeletedIds.filter((id) => deletedIds.includes(id)),
+    remoteToLocalIdMap
   }
 }
 
@@ -95,7 +115,8 @@ function prepareApplyRemoteChangesToCollection<T: Model>(
   conflictResolver?: SyncConflictResolver,
 ): T[] {
   const { database, table } = collection
-  const { created, updated, recordsToDestroy: deleted, records, locallyDeletedIds } = recordsToApply
+  const { created, updated, recordsToDestroy: deleted, records, locallyDeletedIds, remoteToLocalIdMap } = recordsToApply
+  const useIdMapping = database.useIdMapping;
 
   // if `sendCreatedAsUpdated`, server should send all non-deleted records as `updated`
   // log error if it doesn't — but disable standard created vs updated errors
@@ -110,7 +131,7 @@ function prepareApplyRemoteChangesToCollection<T: Model>(
   // Insert and update records
   created.forEach((raw) => {
     validateRemoteRaw(raw)
-    const currentRecord = findRecord(raw.id, records)
+    const currentRecord = findRecord(raw.id, records, useIdMapping ? remoteToLocalIdMap: null)
     if (currentRecord) {
       logError(
         `[Sync] Server wants client to create record ${table}#${raw.id}, but it already exists locally. This may suggest last sync partially executed, and then failed; or it could be a serious bug. Will update existing record instead.`,
@@ -122,15 +143,15 @@ function prepareApplyRemoteChangesToCollection<T: Model>(
       )
       // Note: we're not awaiting the async operation (but it will always complete before the batch)
       database.adapter.destroyDeletedRecords(table, [raw.id])
-      recordsToBatch.push(prepareCreateFromRaw(collection, raw))
+      recordsToBatch.push(...prepareCreateFromRaw(collection, raw))
     } else {
-      recordsToBatch.push(prepareCreateFromRaw(collection, raw))
+      recordsToBatch.push(...prepareCreateFromRaw(collection, raw))
     }
   })
 
   updated.forEach((raw) => {
     validateRemoteRaw(raw)
-    const currentRecord = findRecord(raw.id, records)
+    const currentRecord = findRecord(raw.id, records, useIdMapping ? remoteToLocalIdMap: null)
 
     if (currentRecord) {
       recordsToBatch.push(prepareUpdateFromRaw(currentRecord, raw, log, conflictResolver))
@@ -143,7 +164,7 @@ function prepareApplyRemoteChangesToCollection<T: Model>(
           `[Sync] Server wants client to update record ${table}#${raw.id}, but it doesn't exist locally. This could be a serious bug. Will create record instead. If this was intentional, please check the flag sendCreatedAsUpdated in https://nozbe.github.io/WatermelonDB/Advanced/Sync.html#additional-synchronize-flags`,
         )
 
-      recordsToBatch.push(prepareCreateFromRaw(collection, raw))
+      recordsToBatch.push(...prepareCreateFromRaw(collection, raw))
     }
   })
 
@@ -244,7 +265,6 @@ export default async function applyRemoteChanges(
 ): Promise<void> {
   // $FlowFixMe
   const recordsToApply = await getAllRecordsToApply(db, remoteChanges)
-
   // Perform steps concurrently
   await Promise.all([
     destroyAllDeletedRecords(db, recordsToApply),

@@ -29,9 +29,10 @@ export type SyncPullResult =
 
 export type SyncRejectedIds = { [TableName<any>]: RecordId[] }
 
+export type SyncPublishedRecords = { [TableName<any>]: RecordId[] } // remoteIds of the created records
 export type SyncPushArgs = $Exact<{ changes: SyncDatabaseChangeSet, lastPulledAt: Timestamp }>
 
-export type SyncPushResult = $Exact<{ experimentalRejectedIds?: SyncRejectedIds }>
+export type SyncPushResult = $Exact<{ experimentalRejectedIds?: SyncRejectedIds, published?: SyncPublishedRecords }>
 
 type SyncConflict = $Exact<{ local: DirtyRaw, remote: DirtyRaw, resolved: DirtyRaw }>
 export type SyncLog = {

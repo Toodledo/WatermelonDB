@@ -12,6 +12,7 @@ import type { $RE } from '../types'
 import type Database from '../Database'
 import type Collection from '../Collection'
 import type CollectionMap from '../Database/CollectionMap'
+import type Relation from '../Relation'
 import { type TableName, type ColumnName, columnName } from '../Schema'
 import type { Value } from '../QueryDescription'
 import { type RawRecord, type DirtyRaw, sanitizedRaw, setRawSanitized } from '../RawRecord'
@@ -52,6 +53,8 @@ export default class Model {
   _preparedState: null | 'create' | 'update' | 'markAsDeleted' | 'destroyPermanently' = null
 
   __changes: ?BehaviorSubject<$FlowFixMe<this>> = null
+
+  __relations: Relation[]
 
   _getChanges(): BehaviorSubject<$FlowFixMe<this>> {
     if (!this.__changes) {
@@ -201,6 +204,10 @@ export default class Model {
     return this
   }
 
+  get relations(): Relation[] {
+    return this.__relations;
+  }
+
   // See: Database.batch()
   // To be used by Model @writer methods only!
   // TODO: protect batch,callWriter,... from being used outside a @reader/@writer
@@ -234,6 +241,7 @@ export default class Model {
   constructor(collection: Collection<this>, raw: RawRecord): void {
     this.collection = collection
     this._raw = raw
+    this.__relations = [];
   }
 
   static _prepareCreate(
