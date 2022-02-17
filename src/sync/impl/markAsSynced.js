@@ -56,7 +56,6 @@ const recordsToSaveMapping = (
 
     });
   }
-  console.log('MAPPINGS ' + JSON.stringify(mappings));
   return mappings
 }
 

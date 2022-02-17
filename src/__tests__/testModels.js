@@ -38,40 +38,6 @@ export const testSchema = appSchema({
   ],
 })
 
-export const testSchemaWithMapping = appSchema({
-  version: 1,
-  idMapping: true,
-  tables: [
-    tableSchema({
-      name: 'mock_projects',
-      columns: [{ name: 'name', type: 'string' }],
-    }),
-    tableSchema({
-      name: 'mock_project_sections',
-      columns: [{ name: 'project_id', type: 'string' }],
-    }),
-    tableSchema({
-      name: 'mock_tasks',
-      columns: [
-        { name: 'name', type: 'string' },
-        { name: 'position', type: 'number' },
-        { name: 'is_completed', type: 'boolean' },
-        { name: 'description', type: 'string', isOptional: true },
-        { name: 'project_id', type: 'string' },
-        { name: 'project_section_id', type: 'string', isOptional: true },
-      ],
-    }),
-    tableSchema({
-      name: 'mock_comments',
-      columns: [
-        { name: 'task_id', type: 'string' },
-        { name: 'body', type: 'string' },
-        { name: 'created_at', type: 'number' },
-        { name: 'updated_at', type: 'number' },
-      ],
-    }),
-  ],
-})
 
 export class MockProject extends Model {
   static table = 'mock_projects'
@@ -174,6 +140,41 @@ export const mockDatabase = ({ schema = testSchema, migrations = undefined } = {
       }),
   }
 }
+
+export const testSchemaWithMapping = appSchema({
+  version: 1,
+  idMapping: true,
+  tables: [
+    tableSchema({
+      name: 'mock_projects',
+      columns: [{ name: 'name', type: 'string' }],
+    }),
+    tableSchema({
+      name: 'mock_project_sections',
+      columns: [{ name: 'project_id', type: 'string' }],
+    }),
+    tableSchema({
+      name: 'mock_tasks',
+      columns: [
+        { name: 'name', type: 'string' },
+        { name: 'position', type: 'number' },
+        { name: 'is_completed', type: 'boolean' },
+        { name: 'description', type: 'string', isOptional: true },
+        { name: 'project_id', type: 'string' },
+        { name: 'project_section_id', type: 'string', isOptional: true },
+      ],
+    }),
+    tableSchema({
+      name: 'mock_comments',
+      columns: [
+        { name: 'task_id', type: 'string' },
+        { name: 'body', type: 'string' },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+  ],
+})
 
 export const mockDatabaseWithIdMapping = ({ schema = testSchemaWithMapping, migrations = undefined } = {}) => {
   const adapter = new LokiJSAdapter({

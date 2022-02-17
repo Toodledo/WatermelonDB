@@ -32,39 +32,48 @@ export default class IdMapping {
     }
 
     // get local ID for the specified remoteID
-    getLocalId<String>(remoteId: String): String {
-        return this._collection.query(Q.where('remote_id', Q.eq(remoteId))).fetch().then(r=>{
-            if (r.length > 0) {
-                return r[0].localId
-            }
-            return null;
-        })
+    getLocalId<String>(remoteId: String, table:String): String {
+        return this._collection.query(Q.and(
+                Q.where('remote_id', Q.eq(remoteId)),
+                Q.where('type', Q.eq(table))
+            )).fetch().then(r=>{
+                if (r.length > 0) {
+                    return r[0].localId
+                }
+                return null;
+            })
     }
 
     // get all IDs 
-    getLocalIds(remoteIds: String[]): String[] {
+    getLocalIds(remoteIds: String[], table:String): String[] {
         if (remoteIds.length) {
-            return this._collection.query(Q.where('remote_id', Q.oneOf(remoteIds))).fetch().then(idMappings=>
+            return this._collection.query(Q.and(
+                Q.where('remote_id', Q.oneOf(remoteIds)),
+                Q.where('type', Q.eq(table))
+            )).fetch().then(idMappings=>
                 idMappings.map(i=>i.localId)
             );
         }
         return Promise.resolve([])
     }
 
-    getMappingsForRemoteIds(remoteIds: String[]): IdMappingModel[]{
+    getMappingsForRemoteIds(remoteIds: String[], table: String): IdMappingModel[]{
         if (remoteIds.length) {
-            return this._collection.query(Q.where('remote_id', Q.oneOf(remoteIds))).fetch()
+            return this._collection.query(Q.and(
+                Q.where('remote_id', Q.oneOf(remoteIds)),
+                Q.where('type', Q.eq(table))
+            )).fetch().then(idMappings=> {
+                // convert to a map of {remoteId: localId} mappings
+                return idMappings.reduce((map, obj) => (map[obj.remoteId] = obj.localId, map), {});
+            })
         }
-        return Promise.resolve([])
+        return Promise.resolve({})
     }
 
     getAllMappings(): Object[] {
         return this._collection.query().fetch().then(idMappings=> {
-            const localToRemoteMap = {}
-            idMappings.forEach(id=>{ 
-                localToRemoteMap[id.localId] = id.remoteId;
-            });
-            return localToRemoteMap;
+            // convert to a map of {localId: remoteId} mappings
+            return idMappings.reduce((map, obj) => (map[obj.localId] = obj.remoteId, map), {});
         })
     }
 
@@ -72,11 +81,8 @@ export default class IdMapping {
         //return this._collection.query().fetch();
         if (localIds.length) {
             return this._collection.query(Q.where('local_id', Q.oneOf(localIds))).fetch().then(idMappings=> {
-                const localToRemoteMap = {}
-                idMappings.forEach(id=>{ 
-                    localToRemoteMap[id.localId] = id.remoteId;
-                });
-                return localToRemoteMap;
+                // convert to a map of {localId: remoteId} mappings
+                return idMappings.reduce((map, obj) => (map[obj.localId] = obj.remoteId, map), {});
             })
         }
         return Promise.resolve({})

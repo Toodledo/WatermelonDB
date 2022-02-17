@@ -8,9 +8,121 @@ const idsForChanges = ({ created, updated, deleted }: SyncTableChangeSet): Recor
       ids.push(record.id)
     })
     return ids.concat(deleted)
+}
+
+const idsForRelations = ({ created, updated, deleted }: SyncTableChangeSet, columnName: String): RecordId[] => {
+  const ids = []
+  created.forEach((record) => {
+    if (record[columnName]) {
+      ids.push(record[columnName])
+    }
+  })
+  updated.forEach((record) => {
+    if (record[columnName]) {
+      ids.push(record[columnName])
+    }
+  })
+  return ids;
+}
+
+
+export function convertRelatedRemoteToLocalIds(raw: DirtyRaw, relatedRecords: RelatedRecords, preparedIdMappings: Object): void {
+  if (!relatedRecords) return;
+
+  // for each relation, check if the column is set. If it is, we need to convert the remote ID to a local ID
+  for (const table in relatedRecords) {
+    const relation = relatedRecords[table];
+    const remoteId = raw[relation.columnName];
+    //first look for the localid in the existing saved mappings
+    let localId = relation.mappings[remoteId];
+
+    // if it doesn't exist there, then maybe we just created the related object so we should look in the preparedMappings
+    if (!localId && preparedIdMappings && preparedIdMappings[table]) {
+      localId = preparedIdMappings[table][remoteId];
+    }
+    if (remoteId && !localId) {
+      console.log( `[Sync] Server wants client to map a record ${table}#${remoteId} that doesn't exist locally.`)
+      logError(
+        `[Sync] Server wants client to map a record ${table}#${remoteId} that doesn't exist locally.`,
+      )
+      return
+    }
+    if (localId) {
+      raw[relation.columnName] = localId;
+    }
+  }
+}
+
+export function convertRelatedLocalToRemoteIds(raw: DirtyRaw, relatedRecords: RelatedRecords, preparedIdMappings: Object): void {
+  if (!relatedRecords) return;
+
+  // for each relation, check if the column is set. If it is, we need to convert the remote ID to a local ID
+  for (const table in relatedRecords) {
+    const relation = relatedRecords[table];
+    const localId = raw[relation.columnName];
+    //first look for the remoteid in the existing saved mappings
+    let remoteId = relation.mappings[localId];
+
+    // if it doesn't exist there, then maybe we just created the related object so we should look in the preparedMappings
+    // if (!localId && preparedIdMappings && preparedIdMappings[table]) {
+    //   localId = preparedIdMappings[table][remoteId];
+    // }
+    if (localId && !remoteId) {
+      console.log( `[Sync] Client wants to map a record ${table}#${localId} that doesn't exist on the server.`)
+      logError(
+        `[Sync] Client wants to map a record ${table}#${localId} that doesn't exist on the server.`,
+      )
+      return
+    }
+    if (remoteId) {
+      raw[relation.columnName] = remoteId;
+    }
+  }
+}
+
+type RelatedRecord = { columnName: String, mappings: Object}
+type RelatedRecords = { [TableName<any>]: RelatedRecord }
+async function getAllRelatedRecordsForChanges<T: Model> (
+  collection: Collection<T>,
+  changes: SyncTableChangeSet,
+  conversion: String  // 'remoteToLocal' or 'localToRemote'
+): RelatedRecords<T> {
+  const { database, modelClass } = collection
+  const associations = modelClass.associations;
+
+  const relatedRecords = {}
+  for (const table in associations) {
+    const a = associations[table];
+    
+    if (a.type === 'belongs_to') {
+      const ids = idsForRelations(changes, a.key);
+      const mappings = conversion === 'remoteToLocal' ? 
+        await database.idMappingTable.getMappingsForRemoteIds(ids, table):
+        await database.idMappingTable.getMappingsForLocalIds(ids, table);
+      relatedRecords[table] = {
+        columnName: a.key,
+        mappings
+      }
+    }
   }
 
-export async function mapIdsForPushedChanges(
+  return relatedRecords;
+}
+export async function getAllRelatedLocalIdsForChanges<T: Model> (
+  collection: Collection<T>,
+  changes: SyncTableChangeSet
+): RelatedRecords<T> {
+  return getAllRelatedRecordsForChanges(collection, changes, 'remoteToLocal')
+}
+
+export async function getAllRelatedRemoteIdsForChanges<T: Model> (
+  collection: Collection<T>,
+  changes: SyncTableChangeSet
+): RelatedRecords<T> {
+  return getAllRelatedRecordsForChanges(collection, changes, 'localToRemote')
+}
+  
+export async function convertIdsForPushedChanges(
     db: Database,
     changes: SyncDatabaseChangeSet,
   ): Promise<void> {
@@ -19,39 +131,42 @@ export async function mapIdsForPushedChanges(
     const mappedChanges = {};
 
     for (const table in changes ) {
-        const ids = idsForChanges(changes[(table: any)]);
-        // get local IDs to search for
-        const idMappings = await db.idMappingTable.getMappingsForLocalIds(ids);
-        
-        const { created, updated, deleted } = changes[(table: any)]
+      const tableChanges = changes[table];
+      const { created, updated, deleted } = tableChanges
+      const ids = idsForChanges(tableChanges);
+    
+      const idMappings = await db.idMappingTable.getMappingsForLocalIds(ids); // get local IDs to search for
+      const relatedRemoteIds = await getAllRelatedRemoteIdsForChanges(db.get(table), tableChanges);
 
-        // for created records, we can just remove the localid because it will get created on the server
-        // then we'll need to make sure to save the server assigned ID once it gets created
-        const mappedCreated = created.map((raw) => {
-            const newCreated = Object.assign({}, raw);
-            delete newCreated.id
-            return newCreated
-        })
-        const mappedUpdated = updated.map((raw) => {
-          const { id } = raw
-          const remoteId = idMappings[id];  //get the remoteid
-          if (!remoteId) {
-            logError(
-                `[Sync] Looking for remoteId for ${table}#${id}, but I can't find it. Will ignore it. This is probably a Watermelon bug — please file an issue!`,
-              )
-              return
-          }
-          const newUpdated = Object.assign({}, raw, {id: remoteId});    // make sure we map the remote ID
-          return newUpdated;
-        });
-        const mappedDeleted = deleted.map((deletedId)=> (idMappings[deletedId]));
-
-        const mappedChangeSet = {
-            created: mappedCreated,
-            updated: mappedUpdated,
-            deleted: mappedDeleted,
+      // for created records, we can just remove the localid because it will get created on the server
+      // then we'll need to make sure to save the server assigned ID once it gets created
+      const mappedCreated = created.map((raw) => {
+          const newCreated = Object.assign({}, raw);
+          delete newCreated.id
+          convertRelatedLocalToRemoteIds(newCreated, relatedRemoteIds, {});
+          return newCreated
+      })
+      const mappedUpdated = updated.map((raw) => {
+        const { id } = raw
+        const remoteId = idMappings[id];  //get the remoteid
+        if (!remoteId) {
+          logError(
+              `[Sync] Looking for remoteId for ${table}#${id}, but I can't find it. Will ignore it. This is probably a Watermelon bug — please file an issue!`,
+            )
+            return
         }
-        mappedChanges[table] = mappedChangeSet
+        const newUpdated = Object.assign({}, raw, {id: remoteId});    // make sure we map the remote ID
+        convertRelatedLocalToRemoteIds(newUpdated, relatedRemoteIds, {});
+        return newUpdated;
+      });
+      const mappedDeleted = deleted.map((deletedId)=> (idMappings[deletedId]));
+
+      const mappedChangeSet = {
+          created: mappedCreated,
+          updated: mappedUpdated,
+          deleted: mappedDeleted,
+      }
+      mappedChanges[table] = mappedChangeSet
     }
     return mappedChanges;
 }

@@ -13,7 +13,7 @@ import {
 } from './index'
 import { ensureSameDatabase, isChangeSetEmpty, changeSetCount } from './helpers'
 import { type SyncArgs, type Timestamp } from '../index'
-import { mapIdsForPushedChanges } from './idMapper'
+import { convertIdsForPushedChanges } from './idMapper'
 
 export default async function synchronize({
   database,
@@ -127,7 +127,7 @@ export default async function synchronize({
       log && (log.phase = 'ready to push')
 
       const changes = (useIdMapping) ?         
-        await mapIdsForPushedChanges(database, localChanges.changes): 
+        await convertIdsForPushedChanges(database, localChanges.changes): 
         localChanges.changes 
       const pushResult =
         (await pushChanges({ changes: changes, lastPulledAt: newLastPulledAt })) || {}

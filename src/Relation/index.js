@@ -47,8 +47,6 @@ export default class Relation<T: ?Model> {
     this._relationTableName = relationTableName
     this._columnName = columnName
     this._isImmutable = options.isImmutable
-
-   this._model.__relations.push(this);
   }
 
   get id(): $Call<ExtractRecordId, T> {
