@@ -1723,10 +1723,14 @@ describe('idmapping', () => {
       log,
     })
 
-    const mapping = await database.idMappingTable.getMappingsForLocalIds(['pCreated1', 'pCreated2', 'tCreated', 'cCreated']);
-    expect(mapping).toEqual(
-      {pCreated1: 'project1', pCreated2: 'project2', tCreated: 'task1', cCreated: 'comment1'}
-    )
+    let mapping = await database.idMappingTable.getMappingsForLocalIds(['pCreated1', 'pCreated2'], 'mock_projects');
+    expect(mapping).toEqual({pCreated1: 'project1', pCreated2: 'project2'})
+
+    mapping = await database.idMappingTable.getMappingsForLocalIds(['tCreated'], 'mock_tasks');
+    expect(mapping).toEqual({tCreated: 'task1'})
+
+    mapping = await database.idMappingTable.getMappingsForLocalIds(['cCreated'], 'mock_comments');
+    expect(mapping).toEqual({cCreated: 'comment1'})
   })
   it('can create new local ids from new records', async () => {
     const { database, projects, tasks } = makeDatabaseWithIdMapping()
@@ -1853,10 +1857,15 @@ describe('idmapping', () => {
       log,
     })
 
-    const mapping = await database.idMappingTable.getMappingsForLocalIds(['pCreated1', 'pCreated2', 'tCreated', 'cCreated']);
-    expect(mapping).toEqual(
-      {pCreated1: 'project1', pCreated2: 'project2', tCreated: 'task1', cCreated: 'comment1'}
-    )
+    let mapping = await database.idMappingTable.getMappingsForLocalIds(['pCreated1', 'pCreated2'], 'mock_projects');
+    expect(mapping).toEqual({pCreated1: 'project1', pCreated2: 'project2'})
+
+    mapping = await database.idMappingTable.getMappingsForLocalIds(['tCreated'], 'mock_tasks');
+    expect(mapping).toEqual({tCreated: 'task1'})
+
+    mapping = await database.idMappingTable.getMappingsForLocalIds(['cCreated'], 'mock_comments');
+    expect(mapping).toEqual({cCreated: 'comment1'})
+
 
     const pullUpdates = jest.fn(async () => ({
       changes: makeChangeSet({

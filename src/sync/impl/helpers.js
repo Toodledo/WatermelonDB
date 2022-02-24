@@ -7,6 +7,7 @@ import { invariant, randomId } from '../../utils/common'
 import type { Model, Collection, Database } from '../..'
 import { type RawRecord, type DirtyRaw, sanitizedRaw } from '../../RawRecord'
 import type { SyncLog, SyncDatabaseChangeSet, SyncConflictResolver } from '../index'
+import { IdMappingModel } from '../../Database/IdMapping'
 
 // Returns raw record with naive solution to a conflict based on local `_changed` field
 // This is a per-column resolution algorithm. All columns that were changed locally win
@@ -41,7 +42,7 @@ function replaceRaw(record: Model, dirtyRaw: DirtyRaw): void {
   record._raw = sanitizedRaw(dirtyRaw, record.collection.schema)
 }
 
-export function prepareCreateFromRaw<T: Model>(collection: Collection<T>, dirtyRaw: DirtyRaw): T {
+export function prepareCreateFromRaw<T: Model>(collection: Collection<T>, dirtyRaw: DirtyRaw): Model[] {
   // TODO: Think more deeply about this - it's probably unnecessary to do this check, since it would
   // mean malicious sync server, which is a bigger problem
   invariant(
@@ -108,7 +109,7 @@ export function prepareUpdateFromRaw<T: Model>(
   })
 }
 
-export function prepareCreateMapping<T: Model>(database: Database, table:any, remoteId: String, localId: String): T {
+export function prepareCreateMapping<T: IdMappingModel>(database: Database, table:string, remoteId: string, localId: string): IdMappingModel {
   const mappingRecord = database.idMappingTable.prepareCreateMapping(localId, remoteId, table);
   return mappingRecord;
 }

@@ -8,12 +8,13 @@ import { noop } from '../utils/fp'
 import type { DatabaseAdapter, BatchOperation } from '../adapters/type'
 import DatabaseAdapterCompat from '../adapters/compat'
 import type Model from '../Model'
-import Collection, { CollectionChangeSet } from '../Collection'
+import Collection, { type CollectionChangeSet } from '../Collection'
 import type { TableName, AppSchema } from '../Schema'
 
 import CollectionMap from './CollectionMap'
 import type LocalStorage from './LocalStorage'
 import WorkQueue, { type ReaderInterface, type WriterInterface } from './WorkQueue'
+import type IdMapping from './IdMapping'
 
 type DatabaseProps = $Exact<{
   adapter: DatabaseAdapter,
@@ -34,9 +35,9 @@ export default class Database {
 
   collections: CollectionMap
 
-  idMappingTable: Collection
+  idMappingTable: IdMapping
 
-  useIdMapping: Boolean
+  useIdMapping: boolean
 
   _workQueue: WorkQueue = new WorkQueue(this)
 

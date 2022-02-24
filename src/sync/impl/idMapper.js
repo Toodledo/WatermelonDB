@@ -1,4 +1,11 @@
+// @flow
+
 import { logError, } from '../../utils/common'
+
+import type { Database, RecordId, Collection, Model, TableName, DirtyRaw } from '../..'
+
+import type { SyncTableChangeSet, SyncDatabaseChangeSet } from '..'
+import { mapObj } from '../../utils/fp'
 const idsForChanges = ({ created, updated, deleted }: SyncTableChangeSet): RecordId[] => {
     const ids = []
     created.forEach((record) => {
@@ -10,7 +17,7 @@ const idsForChanges = ({ created, updated, deleted }: SyncTableChangeSet): Recor
     return ids.concat(deleted)
 }
 
-const idsForRelations = ({ created, updated, deleted }: SyncTableChangeSet, columnName: String): RecordId[] => {
+const idsForRelations = ({ created, updated, deleted }: SyncTableChangeSet, columnName: string): RecordId[] => {
   const ids = []
   created.forEach((record) => {
     if (record[columnName]) {
@@ -26,7 +33,7 @@ const idsForRelations = ({ created, updated, deleted }: SyncTableChangeSet, colu
 }
 
 
-export function convertRelatedRemoteToLocalIds(raw: DirtyRaw, relatedRecords: RelatedRecords, preparedIdMappings: Object): void {
+export function convertRelatedRemoteToLocalIds(raw: DirtyRaw, relatedRecords?: RelatedRecords, preparedIdMappings: Object): void {
   if (!relatedRecords) return;
 
   // for each relation, check if the column is set. If it is, we need to convert the remote ID to a local ID
@@ -80,19 +87,20 @@ export function convertRelatedLocalToRemoteIds(raw: DirtyRaw, relatedRecords: Re
   }
 }
 
-type RelatedRecord = { columnName: String, mappings: Object}
-type RelatedRecords = { [TableName<any>]: RelatedRecord }
+export type RelatedRecord = { columnName: String, mappings: Object}
+export type RelatedRecords = { [TableName<any>]: RelatedRecord }
 async function getAllRelatedRecordsForChanges<T: Model> (
   collection: Collection<T>,
   changes: SyncTableChangeSet,
-  conversion: String  // 'remoteToLocal' or 'localToRemote'
-): RelatedRecords<T> {
+  conversion: string  // 'remoteToLocal' or 'localToRemote'
+): RelatedRecords {
   const { database, modelClass } = collection
   const associations = modelClass.associations;
 
-  const relatedRecords = {}
-  for (const table in associations) {
-    const a = associations[table];
+  const relatedRecords: RelatedRecords = {};
+
+  mapObj(async (a, table: TableName<any>) => {
+    //const a = associations[table];
     
     if (a.type === 'belongs_to') {
       const ids = idsForRelations(changes, a.key);
@@ -104,38 +112,54 @@ async function getAllRelatedRecordsForChanges<T: Model> (
         mappings
       }
     }
-  }
+  }, associations);
+  // for (const table in associations) {
+  //   const a = associations[table];
+    
+  //   if (a.type === 'belongs_to') {
+  //     const ids = idsForRelations(changes, a.key);
+  //     const mappings = conversion === 'remoteToLocal' ? 
+  //       await database.idMappingTable.getMappingsForRemoteIds(ids, table):
+  //       await database.idMappingTable.getMappingsForLocalIds(ids, table);
+  //     relatedRecords[table] = {
+  //       columnName: a.key,
+  //       mappings
+  //     }
+  //   }
+  // }
 
   return relatedRecords;
 }
 export async function getAllRelatedLocalIdsForChanges<T: Model> (
   collection: Collection<T>,
   changes: SyncTableChangeSet
-): RelatedRecords<T> {
+): RelatedRecords {
   return getAllRelatedRecordsForChanges(collection, changes, 'remoteToLocal')
 }
 
 export async function getAllRelatedRemoteIdsForChanges<T: Model> (
   collection: Collection<T>,
   changes: SyncTableChangeSet
-): RelatedRecords<T> {
+): RelatedRecords {
   return getAllRelatedRecordsForChanges(collection, changes, 'localToRemote')
 }
   
 export async function convertIdsForPushedChanges(
     db: Database,
     changes: SyncDatabaseChangeSet,
-  ): Promise<void> {
+  ): Promise<any> {
     if (!changes) return changes;
 
     const mappedChanges = {};
 
-    for (const table in changes ) {
-      const tableChanges = changes[table];
-      const { created, updated, deleted } = tableChanges
+    mapObj(async (tableChanges, table: TableName<any>) => {
+      // console.log("TABLE TYPE " + typeof table);
+      // return;
+      //const tableChanges = changes[table];
+      const { created, updated, deleted } = tableChanges;//changes[table]
       const ids = idsForChanges(tableChanges);
     
-      const idMappings = await db.idMappingTable.getMappingsForLocalIds(ids); // get local IDs to search for
+      const idMappings = await db.idMappingTable.getMappingsForLocalIds(ids, table); // get local IDs to search for
       const relatedRemoteIds = await getAllRelatedRemoteIdsForChanges(db.get(table), tableChanges);
 
       // for created records, we can just remove the localid because it will get created on the server
@@ -167,6 +191,46 @@ export async function convertIdsForPushedChanges(
           deleted: mappedDeleted,
       }
       mappedChanges[table] = mappedChangeSet
-    }
+    }, changes)
+    // for (const table: TableName<any> in changes ) {
+    //   console.log("TABLE TYPE " + typeof(table));
+    //   //table = tableName(table);
+    //   //const tableChanges = changes[table];
+    //   const { created, updated, deleted } = changes[table]
+    //   const ids = idsForChanges(changes[table]);
+    
+    //   const idMappings = await db.idMappingTable.getMappingsForLocalIds(ids, table); // get local IDs to search for
+    //   const relatedRemoteIds = await getAllRelatedRemoteIdsForChanges(db.get(table), changes[table]);
+
+    //   // for created records, we can just remove the localid because it will get created on the server
+    //   // then we'll need to make sure to save the server assigned ID once it gets created
+    //   const mappedCreated = created.map((raw) => {
+    //       const newCreated = Object.assign({}, raw);
+    //       delete newCreated.id
+    //       convertRelatedLocalToRemoteIds(newCreated, relatedRemoteIds, {});
+    //       return newCreated
+    //   })
+    //   const mappedUpdated = updated.map((raw) => {
+    //     const { id } = raw
+    //     const remoteId = idMappings[id];  //get the remoteid
+    //     if (!remoteId) {
+    //       logError(
+    //           `[Sync] Looking for remoteId for ${table}#${id}, but I can't find it. Will ignore it. This is probably a Watermelon bug — please file an issue!`,
+    //         )
+    //         return
+    //     }
+    //     const newUpdated = Object.assign({}, raw, {id: remoteId});    // make sure we map the remote ID
+    //     convertRelatedLocalToRemoteIds(newUpdated, relatedRemoteIds, {});
+    //     return newUpdated;
+    //   });
+    //   const mappedDeleted = deleted.map((deletedId)=> (idMappings[deletedId]));
+
+    //   const mappedChangeSet = {
+    //       created: mappedCreated,
+    //       updated: mappedUpdated,
+    //       deleted: mappedDeleted,
+    //   }
+    //   mappedChanges[table] = mappedChangeSet
+    // }
     return mappedChanges;
 }

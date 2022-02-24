@@ -8,6 +8,7 @@ import { prepareMarkAsSynced, prepareCreateMapping } from './helpers'
 import type { SyncLocalChanges, SyncRejectedIds, SyncPublishedRecords } from '../index'
 import { createDebuggerStatement } from 'typescript'
 import { consoleTestResultHandler } from 'tslint/lib/test'
+import { IdMappingModel } from '../../Database/IdMapping'
 
 const recordsToMarkAsSynced = (
   { changes, affectedRecords }: SyncLocalChanges,
@@ -39,8 +40,8 @@ const recordsToMarkAsSynced = (
 
 const recordsToSaveMapping = (
   { changes, affectedRecords}: SyncLocalChanges,
-  published: SyncPublishedRecords
-): Model[] => {
+  published?: ?SyncPublishedRecords
+): any[] => {
   const mappings = [];
   if (published) {
     Object.keys(changes).forEach((table) => {

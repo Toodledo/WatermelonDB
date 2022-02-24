@@ -7,6 +7,7 @@ import { logError, invariant, logger } from '../../utils/common'
 import type { Database, RecordId, Collection, Model, TableName, DirtyRaw } from '../..'
 import * as Q from '../../QueryDescription'
 import { columnName } from '../../Schema'
+import { type RelatedRecords } from './idMapper'
 
 import type {
   SyncTableChangeSet,
@@ -31,7 +32,7 @@ const idsForChanges = ({ created, updated, deleted }: SyncTableChangeSet): Recor
 const fetchRecordsForChanges = <T: Model>(
   collection: Collection<T>,
   changes: SyncTableChangeSet,
-  ids: RecordId[]
+  ids: string[]
 ): Promise<T[]> => {
   if (ids.length) {
     return collection.query(Q.where(columnName('id'), Q.oneOf(ids))).fetch()
@@ -112,7 +113,7 @@ function prepareApplyRemoteChangesToCollection<T: Model>(
   log?: SyncLog,
   conflictResolver?: SyncConflictResolver,
   preparedIdMappings?: Object
-): T[] {
+): Model[] {
   const { database, table } = collection
   const { created, updated, recordsToDestroy: deleted, records, locallyDeletedIds, remoteToLocalIdMap, relatedRecords } = recordsToApply
   const useIdMapping = database.useIdMapping;
@@ -125,7 +126,7 @@ function prepareApplyRemoteChangesToCollection<T: Model>(
     )
   }
 
-  const recordsToBatch: T[] = [] // mutating - perf critical
+  const recordsToBatch: Model[] = [] // mutating - perf critical
 
   // Insert and update records
   created.forEach((raw) => {
