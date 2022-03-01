@@ -1094,16 +1094,6 @@
     "readdirp" "^2.2.1"
     "upath" "^1.1.1"
 
-"@nozbe/simdjson@1.0.0":
-  "integrity" "sha512-lm/MNUneznK65NNbmvawOn+OFYMjeBga+xEBACda4hTpZBnJhIgfLIxpYvx40sIeihRX0v7WiEB7VwQO9FIMAg=="
-  "resolved" "https://registry.npmjs.org/@nozbe/simdjson/-/simdjson-1.0.0.tgz"
-  "version" "1.0.0"
-
-"@nozbe/sqlite@3.36.0":
-  "integrity" "sha512-wKTFGvgf5V+bYlhXdukOWKH0XgdG0NmUQwLWG7w5Yk4EUeQS29D5uWPCeWT1Ac/NzDKuHsYP6KVOJDbJSauAAg=="
-  "resolved" "https://registry.npmjs.org/@nozbe/sqlite/-/sqlite-3.36.0.tgz"
-  "version" "3.36.0"
-
 "@nozbe/with-observables@1.4.0":
   "integrity" "sha512-vzc0QiYcXK/GmflBGBXTs02ayL25e1l4Cr9aYgSuYCZVqpyMfep9xp89RygNbiibAfVLbgEUa7thxlm3jw8hFw=="
   "resolved" "https://registry.npmjs.org/@nozbe/with-observables/-/with-observables-1.4.0.tgz"
@@ -1259,6 +1249,16 @@
   dependencies:
     "@babel/runtime" "^7.5.4"
     "@types/testing-library__react-hooks" "^2.0.0"
+
+"@toodledo/simdjson@1.0.0":
+  "integrity" "sha512-ZcOxpO8OQVYM/CcLXsQtj+KJP5Yk7F4amdqHYMxbdQZhijOT8Yak0+f2Acm3xtrgXVY9YXqENvO6faCbTEHVKw=="
+  "resolved" "https://registry.npmjs.org/@toodledo/simdjson/-/simdjson-1.0.0.tgz"
+  "version" "1.0.0"
+
+"@toodledo/sqlite@3.36.0":
+  "integrity" "sha512-RnYwxnjRAmJ3qarZrgxpSCmSYqcMD2VpmQ3tDw1a0NwFzjc5gc+7MST8fChbicOLob384TTRAW37qY3Bf2Tcdw=="
+  "resolved" "https://registry.npmjs.org/@toodledo/sqlite/-/sqlite-3.36.0.tgz"
+  "version" "3.36.0"
 
 "@types/babel__core@^7.0.0", "@types/babel__core@^7.1.7":
   "integrity" "sha512-zGZJzzBUVDo/eV6KgbE0f0ZI7dInEYvo12Rb70uNQDshC3SkRMb67ja0GgRHZgAX3Za6rhaWlvbDO8rrGyAb1g=="
@@ -2093,8 +2093,8 @@
   "version" "1.6.41"
 
 "big-list-of-naughty-strings@https://github.com/radex/big-list-of-naughty-strings#8346238a82f1e3a6f62389def1e668d80e4023fb":
-  "integrity" "sha512-YVZkUVBkYVQUATN3i9CBkwkL8VFAiBMKDPtb95LxRYcJ42T9V6ER5XBI1aEZ/fJk4mTqwjG9gC+v+5PI//LZWA=="
-  "resolved" "git+ssh://git@github.com/radex/big-list-of-naughty-strings.git"
+  "integrity" "sha512-ZgR0WVmBbexKxXkDWbOKdk5VfxkBEIrag79c+TD2RD8fuvQLdVYn3zjuqrc08bpHxrP1Ri933otNjCaGjU3BsQ=="
+  "resolved" "git+ssh://git@github.com/radex/big-list-of-naughty-strings.git#8346238a82f1e3a6f62389def1e668d80e4023fb"
   "version" "1.0.0"
 
 "binary-extensions@^1.0.0":

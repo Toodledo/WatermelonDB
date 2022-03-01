@@ -32,7 +32,7 @@ const idsForChanges = ({ created, updated, deleted }: SyncTableChangeSet): Recor
 const fetchRecordsForChanges = <T: Model>(
   collection: Collection<T>,
   changes: SyncTableChangeSet,
-  ids: string[]
+  ids: string[],
 ): Promise<T[]> => {
   if (ids.length) {
     return collection.query(Q.where(columnName('id'), Q.oneOf(ids))).fetch()
@@ -58,32 +58,32 @@ type RecordsToApplyRemoteChangesTo<T: Model> = {
   locallyDeletedIds: RecordId[],
   deletedRecordsToDestroy: RecordId[],
   remoteToLocalIdMap: Object,
-  relatedRecords?: RelatedRecords
+  relatedRecords?: RelatedRecords,
 }
 async function recordsToApplyRemoteChangesTo<T: Model>(
   collection: Collection<T>,
-  changes: SyncTableChangeSet
+  changes: SyncTableChangeSet,
 ): Promise<RecordsToApplyRemoteChangesTo<T>> {
   const { database, table, modelClass } = collection
   let { deleted: deletedIds } = changes
 
   // these are remoteIDs
-  let ids = idsForChanges(changes);
+  let ids = idsForChanges(changes)
 
   // if we are using IdMapping, then convert to local ids
-  let remoteToLocalIdMap = {};
-  let relatedRecords = null;
+  let remoteToLocalIdMap = {}
+  let relatedRecords = null
   if (database.useIdMapping) {
-    remoteToLocalIdMap = await database.idMappingTable.getMappingsForRemoteIds(ids, table);
+    remoteToLocalIdMap = await database.idMappingTable.getMappingsForRemoteIds(ids, table)
     // get local IDs to search for
-    ids = Object.values(remoteToLocalIdMap);
+    ids = Object.values(remoteToLocalIdMap)
 
-    deletedIds = await database.idMappingTable.getLocalIds(deletedIds, table);
-    relatedRecords = await getAllRelatedLocalIdsForChanges(collection, changes);
+    deletedIds = await database.idMappingTable.getLocalIds(deletedIds, table)
+    relatedRecords = await getAllRelatedLocalIdsForChanges(collection, changes)
   }
   const [records, locallyDeletedIds] = await Promise.all([
     fetchRecordsForChanges(collection, changes, ids),
-    database.adapter.getDeletedRecords(table)
+    database.adapter.getDeletedRecords(table),
   ])
 
   return {
@@ -93,7 +93,7 @@ async function recordsToApplyRemoteChangesTo<T: Model>(
     recordsToDestroy: records.filter((record) => deletedIds.includes(record.id)),
     deletedRecordsToDestroy: locallyDeletedIds.filter((id) => deletedIds.includes(id)),
     remoteToLocalIdMap,
-    relatedRecords
+    relatedRecords,
   }
 }
 
@@ -112,11 +112,19 @@ function prepareApplyRemoteChangesToCollection<T: Model>(
   sendCreatedAsUpdated: boolean,
   log?: SyncLog,
   conflictResolver?: SyncConflictResolver,
-  preparedIdMappings?: Object
+  preparedIdMappings?: Object,
 ): Model[] {
   const { database, table } = collection
-  const { created, updated, recordsToDestroy: deleted, records, locallyDeletedIds, remoteToLocalIdMap, relatedRecords } = recordsToApply
-  const useIdMapping = database.useIdMapping;
+  const {
+    created,
+    updated,
+    recordsToDestroy: deleted,
+    records,
+    locallyDeletedIds,
+    remoteToLocalIdMap,
+    relatedRecords,
+  } = recordsToApply
+  const useIdMapping = database.useIdMapping
 
   // if `sendCreatedAsUpdated`, server should send all non-deleted records as `updated`
   // log error if it doesn't — but disable standard created vs updated errors
@@ -126,14 +134,15 @@ function prepareApplyRemoteChangesToCollection<T: Model>(
     )
   }
 
+  const related = relatedRecords
   const recordsToBatch: Model[] = [] // mutating - perf critical
 
   // Insert and update records
   created.forEach((raw) => {
     validateRemoteRaw(raw)
-    let id = raw.id;
+    let id = raw.id
     if (useIdMapping) {
-      id = remoteToLocalIdMap[id];          // if we are using id mapping, then first get the localid
+      id = remoteToLocalIdMap[id] // if we are using id mapping, then first get the localid
       convertRelatedRemoteToLocalIds(raw, relatedRecords, preparedIdMappings)
     }
     const currentRecord = findRecord(id, records)
@@ -152,13 +161,20 @@ function prepareApplyRemoteChangesToCollection<T: Model>(
     } else {
       recordsToBatch.push(...prepareCreateFromRaw(collection, raw))
     }
+    if (useIdMapping) {
+      const t = recordsToBatch
+        .filter((m) => m.table === 'id_mapping')
+        .reduce((map, obj) => ((map[obj.remoteId] = obj.localId), map), {})
+
+      preparedIdMappings[table] = t
+    }
   })
 
   updated.forEach((raw) => {
     validateRemoteRaw(raw)
-    let id = raw.id;
+    let id = raw.id
     if (useIdMapping) {
-      id = remoteToLocalIdMap[id];          // if we are using id mapping, then first get the localid
+      id = remoteToLocalIdMap[id] // if we are using id mapping, then first get the localid
       convertRelatedRemoteToLocalIds(raw, relatedRecords, preparedIdMappings)
     }
 
@@ -176,6 +192,13 @@ function prepareApplyRemoteChangesToCollection<T: Model>(
         )
 
       recordsToBatch.push(...prepareCreateFromRaw(collection, raw))
+    }
+    if (useIdMapping) {
+      const t = recordsToBatch
+        .filter((m) => m.table === 'id_mapping')
+        .reduce((map, obj) => ((map[obj.remoteId] = obj.localId), map), {})
+
+      preparedIdMappings[table] = t
     }
   })
 
@@ -237,14 +260,14 @@ const applyAllRemoteChanges = (
       sendCreatedAsUpdated,
       log,
       conflictResolver,
-      preparedIdMappings
+      preparedIdMappings,
     )
     if (db.useIdMapping) {
       preparedIdMappings[tableName] = preparedModels
-        .filter(m=>m.table === 'id_mapping')
-        .reduce((map, obj) => (map[obj.remoteId] = obj.localId, map), {});
+        .filter((m) => m.table === 'id_mapping')
+        .reduce((map, obj) => ((map[obj.remoteId] = obj.localId), map), {})
     }
-    allRecords.push(...preparedModels);
+    allRecords.push(...preparedModels)
   })
   return db.batch(allRecords)
 }
@@ -266,12 +289,12 @@ const unsafeApplyAllRemoteChangesByBatches = (
       sendCreatedAsUpdated,
       log,
       conflictResolver,
-      preparedIdMappings
+      preparedIdMappings,
     )
     if (db.useIdMapping) {
       preparedIdMappings[tableName] = preparedModels
-        .filter(m=>m.table === 'id_mapping')
-        .reduce((map, obj) => (map[obj.remoteId] = obj.localId, map), {});
+        .filter((m) => m.table === 'id_mapping')
+        .reduce((map, obj) => ((map[obj.remoteId] = obj.localId), map), {})
     }
     const batches = splitEvery(5000, preparedModels).map((recordBatch) => db.batch(recordBatch))
     promises.push(...batches)

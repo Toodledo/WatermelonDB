@@ -38,7 +38,6 @@ export const testSchema = appSchema({
   ],
 })
 
-
 export class MockProject extends Model {
   static table = 'mock_projects'
 
@@ -84,6 +83,35 @@ export class MockTask extends Model {
   @relation('mock_projects', 'project_id') project
 
   @relation('mock_project_sections', 'project_section_id') projectSection
+}
+
+export class MockTaskWithHierarchy extends Model {
+  static table = 'mock_tasks'
+
+  static associations = {
+    mock_projects: { type: 'belongs_to', key: 'project_id' },
+    mock_project_sections: { type: 'belongs_to', key: 'project_section_id' },
+    mock_comments: { type: 'has_many', foreignKey: 'task_id' },
+    mock_tasks: { type: 'belongs_to', key: 'parent_id' },
+  }
+
+  @field('name') name
+
+  @field('position') position
+
+  @field('is_completed') isCompleted
+
+  @field('description') description
+
+  @field('project_id') projectId
+
+  @field('parent_id') parentId
+
+  @relation('mock_projects', 'project_id') project
+
+  @relation('mock_project_sections', 'project_section_id') projectSection
+
+  @relation('mock_tasks', 'parent_id') parent
 }
 
 export class MockComment extends Model {
@@ -142,7 +170,7 @@ export const mockDatabase = ({ schema = testSchema, migrations = undefined } = {
 }
 
 export const testSchemaWithMapping = appSchema({
-  version: 1,
+  version: 2,
   idMapping: true,
   tables: [
     tableSchema({
@@ -162,6 +190,7 @@ export const testSchemaWithMapping = appSchema({
         { name: 'description', type: 'string', isOptional: true },
         { name: 'project_id', type: 'string' },
         { name: 'project_section_id', type: 'string', isOptional: true },
+        { name: 'parent_id', type: 'string', isOptional: true }, // for hierarchical tasks
       ],
     }),
     tableSchema({
@@ -176,7 +205,17 @@ export const testSchemaWithMapping = appSchema({
   ],
 })
 
-export const mockDatabaseWithIdMapping = ({ schema = testSchemaWithMapping, migrations = undefined } = {}) => {
+export const modelClassesWithMappings = [
+  MockProject,
+  MockProjectSection,
+  MockTaskWithHierarchy,
+  MockComment,
+]
+
+export const mockDatabaseWithIdMapping = ({
+  schema = testSchemaWithMapping,
+  migrations = undefined,
+} = {}) => {
   const adapter = new LokiJSAdapter({
     dbName: 'testwithmapping',
     schema,
@@ -187,8 +226,8 @@ export const mockDatabaseWithIdMapping = ({ schema = testSchemaWithMapping, migr
   const database = new Database({
     adapter,
     schema,
-    modelClasses,
-    idMapping: true
+    modelClasses: modelClassesWithMappings,
+    idMapping: true,
   })
   return {
     database,
@@ -203,7 +242,7 @@ export const mockDatabaseWithIdMapping = ({ schema = testSchemaWithMapping, migr
       new Database({
         adapter: await database.adapter.underlyingAdapter.testClone({ schema: clonedSchema }),
         schema: clonedSchema,
-        modelClasses,
+        modelClasses: modelClassesWithMappings,
       }),
   }
 }
