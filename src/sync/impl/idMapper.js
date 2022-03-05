@@ -55,7 +55,9 @@ export function convertRelatedRemoteToLocalIds(
     if (!localId && preparedIdMappings && preparedIdMappings[table]) {
       localId = preparedIdMappings[table][remoteId]
     }
-    if (remoteId && !localId) {
+
+    // if remoteId is there (e.g. not 0 or "0") and can't find the localId, then log an error
+    if (remoteId * 1 && !localId) {
       console.log(
         `[Sync] Server wants client to map a record ${table}#${remoteId} that doesn't exist locally.`,
       )
