@@ -90,7 +90,7 @@ export function convertRelatedLocalToRemoteIds(
     // if (!localId && preparedIdMappings && preparedIdMappings[table]) {
     //   localId = preparedIdMappings[table][remoteId];
     // }
-    if (localId && !remoteId) {
+    if (localId * 1 && !remoteId) {
       console.log(
         `[Sync] Client wants to map a record ${table}#${localId} that doesn't exist on the server.`,
       )
@@ -165,87 +165,48 @@ export async function convertIdsForPushedChanges(
 ): Promise<any> {
   if (!changes) return changes
 
-  const mappedChanges = {}
+  //const mappedChanges = {}
 
-  mapObj(async (tableChanges, table: TableName<any>) => {
-    // console.log("TABLE TYPE " + typeof table);
-    // return;
-    //const tableChanges = changes[table];
-    const { created, updated, deleted } = tableChanges //changes[table]
-    const ids = idsForChanges(tableChanges)
+  const mappedChanges = await allPromisesObj(
+    mapObj(async (tableChanges, table: TableName<any>) => {
+      const { created, updated, deleted } = tableChanges //changes[table]
+      const ids = idsForChanges(tableChanges)
 
-    const idMappings = await db.idMappingTable.getMappingsForLocalIds(ids, table) // get local IDs to search for
-    const relatedRemoteIds = await getAllRelatedRemoteIdsForChanges(db.get(table), tableChanges)
+      const idMappings = await db.idMappingTable.getMappingsForLocalIds(ids, table) // get local IDs to search for
+      const relatedRemoteIds = await getAllRelatedRemoteIdsForChanges(db.get(table), tableChanges)
 
-    // for created records, we can just remove the localid because it will get created on the server
-    // then we'll need to make sure to save the server assigned ID once it gets created
-    const mappedCreated = created.map((raw) => {
-      const newCreated = Object.assign({}, raw)
-      delete newCreated.id
-      convertRelatedLocalToRemoteIds(newCreated, relatedRemoteIds, {})
-      return newCreated
-    })
-    const mappedUpdated = updated.map((raw) => {
-      const { id } = raw
-      const remoteId = idMappings[id] //get the remoteid
-      if (!remoteId) {
-        logError(
-          `[Sync] Looking for remoteId for ${table}#${id}, but I can't find it. Will ignore it. This is probably a Watermelon bug — please file an issue!`,
-        )
-        return
+      // for created records, we can just remove the localid because it will get created on the server
+      // then we'll need to make sure to save the server assigned ID once it gets created
+      const mappedCreated = created.map((raw) => {
+        const newCreated = Object.assign({}, raw)
+        delete newCreated.id
+        convertRelatedLocalToRemoteIds(newCreated, relatedRemoteIds, {})
+        return newCreated
+      })
+      const mappedUpdated = updated.map((raw) => {
+        const { id } = raw
+        const remoteId = idMappings[id] //get the remoteid
+        if (!remoteId) {
+          logError(
+            `[Sync] Looking for remoteId for ${table}#${id}, but I can't find it. Will ignore it. This is probably a Watermelon bug — please file an issue!`,
+          )
+          return
+        }
+        const newUpdated = Object.assign({}, raw, { id: remoteId }) // make sure we map the remote ID
+        convertRelatedLocalToRemoteIds(newUpdated, relatedRemoteIds, {})
+        return newUpdated
+      })
+      const mappedDeleted = deleted.map((deletedId) => idMappings[deletedId])
+
+      const mappedChangeSet = {
+        created: mappedCreated,
+        updated: mappedUpdated,
+        deleted: mappedDeleted,
       }
-      const newUpdated = Object.assign({}, raw, { id: remoteId }) // make sure we map the remote ID
-      convertRelatedLocalToRemoteIds(newUpdated, relatedRemoteIds, {})
-      return newUpdated
-    })
-    const mappedDeleted = deleted.map((deletedId) => idMappings[deletedId])
+      //mappedChanges[table] = mappedChangeSet
+      return mappedChangeSet
+    }, changes),
+  )
 
-    const mappedChangeSet = {
-      created: mappedCreated,
-      updated: mappedUpdated,
-      deleted: mappedDeleted,
-    }
-    mappedChanges[table] = mappedChangeSet
-  }, changes)
-  // for (const table: TableName<any> in changes ) {
-  //   console.log("TABLE TYPE " + typeof(table));
-  //   //table = tableName(table);
-  //   //const tableChanges = changes[table];
-  //   const { created, updated, deleted } = changes[table]
-  //   const ids = idsForChanges(changes[table]);
-
-  //   const idMappings = await db.idMappingTable.getMappingsForLocalIds(ids, table); // get local IDs to search for
-  //   const relatedRemoteIds = await getAllRelatedRemoteIdsForChanges(db.get(table), changes[table]);
-
-  //   // for created records, we can just remove the localid because it will get created on the server
-  //   // then we'll need to make sure to save the server assigned ID once it gets created
-  //   const mappedCreated = created.map((raw) => {
-  //       const newCreated = Object.assign({}, raw);
-  //       delete newCreated.id
-  //       convertRelatedLocalToRemoteIds(newCreated, relatedRemoteIds, {});
-  //       return newCreated
-  //   })
-  //   const mappedUpdated = updated.map((raw) => {
-  //     const { id } = raw
-  //     const remoteId = idMappings[id];  //get the remoteid
-  //     if (!remoteId) {
-  //       logError(
-  //           `[Sync] Looking for remoteId for ${table}#${id}, but I can't find it. Will ignore it. This is probably a Watermelon bug — please file an issue!`,
-  //         )
-  //         return
-  //     }
-  //     const newUpdated = Object.assign({}, raw, {id: remoteId});    // make sure we map the remote ID
-  //     convertRelatedLocalToRemoteIds(newUpdated, relatedRemoteIds, {});
-  //     return newUpdated;
-  //   });
-  //   const mappedDeleted = deleted.map((deletedId)=> (idMappings[deletedId]));
-
-  //   const mappedChangeSet = {
-  //       created: mappedCreated,
-  //       updated: mappedUpdated,
-  //       deleted: mappedDeleted,
-  //   }
-  //   mappedChanges[table] = mappedChangeSet
-  // }
   return mappedChanges
 }

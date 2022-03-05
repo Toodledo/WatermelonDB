@@ -126,16 +126,21 @@ export default async function synchronize({
     if (!isChangeSetEmpty(localChanges.changes)) {
       log && (log.phase = 'ready to push')
 
-      const changes = (useIdMapping) ?         
-        await convertIdsForPushedChanges(database, localChanges.changes): 
-        localChanges.changes 
+      const changes = useIdMapping
+        ? await convertIdsForPushedChanges(database, localChanges.changes)
+        : localChanges.changes
       const pushResult =
         (await pushChanges({ changes: changes, lastPulledAt: newLastPulledAt })) || {}
       log && (log.phase = 'pushed')
       log && (log.rejectedIds = pushResult.experimentalRejectedIds)
 
       ensureSameDatabase(database, resetCount)
-      await markLocalChangesAsSynced(database, localChanges, pushResult.experimentalRejectedIds, pushResult.published)
+      await markLocalChangesAsSynced(
+        database,
+        localChanges,
+        pushResult.experimentalRejectedIds,
+        pushResult.published,
+      )
       log && (log.phase = 'marked local changes as synced')
     }
   } else {
