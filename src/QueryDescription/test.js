@@ -477,6 +477,17 @@ describe('buildQueryDescription', () => {
       sortBy: [{ type: 'sortBy', sortColumn: 'sortable_column', sortOrder: 'desc' }],
     })
   })
+  it('supports sorting query SQL expr', () => {
+    const query = Q.buildQueryDescription([
+      Q.unsafeSortByExpr('sortable_column COLLATE NOCASE', Q.desc),
+    ])
+    expect(query).toEqual({
+      where: [],
+      joinTables: [],
+      nestedJoinTables: [],
+      sortBy: [{ type: 'sortBy', sortExpr: 'sortable_column COLLATE NOCASE', sortOrder: 'desc' }],
+    })
+  })
   it('does not support skip operator without take operator', () => {
     expect(() => {
       Q.buildQueryDescription([Q.skip(100)])

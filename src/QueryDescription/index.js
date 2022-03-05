@@ -61,8 +61,9 @@ export const asc: SortOrder = 'asc'
 export const desc: SortOrder = 'desc'
 export type SortBy = $RE<{
   type: 'sortBy',
-  sortColumn: ColumnName,
-  sortOrder: SortOrder,
+  sortColumn?: ColumnName,
+  sortOrder?: SortOrder,
+  sortExpr?: str,
 }>
 export type Take = $RE<{
   type: 'take',
@@ -327,6 +328,21 @@ export function sortBy(sortColumn: ColumnName, sortOrder: SortOrder = asc): Sort
   return { type: 'sortBy', sortColumn: checkName(sortColumn), sortOrder }
 }
 
+export function unsafeSortByExpr(sortExpr: str, sortOrder?: SortOrder = asc): SortBy {
+  if (sortOrder) {
+    invariant(
+      sortOrder === 'asc' || sortOrder === 'desc',
+      `Invalid sortOrder argument received in Q.sortBy (valid: asc, desc)`,
+    )
+  }
+  if (process.env.NODE_ENV !== 'production') {
+    invariant((typeof sortExpr === 'string': true), 'Value passed to Q.sortExpr is not a string')
+  }
+  if (sortExpr) {
+    return { type: 'sortBy', sortExpr, sortOrder }
+  }
+}
+
 export function take(count: number): Take {
   invariant(typeof count === 'number', 'Value passed to Q.take() is not a number')
   return { type: 'take', count }
@@ -416,6 +432,9 @@ const extractClauses: (Clause[]) => QueryDescription = (clauses) => {
         query.where.push(clause)
         break
       case 'sortBy':
+        query.sortBy.push(clause)
+        break
+      case 'sqlsort':
         query.sortBy.push(clause)
         break
       case 'take':

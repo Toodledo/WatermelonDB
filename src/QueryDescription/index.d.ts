@@ -52,7 +52,8 @@ declare module '@nozbe/watermelondb/QueryDescription' {
   export interface SortBy {
     type: 'sortBy'
     sortColumn: ColumnName
-    sortOrder: SortOrder
+    sortOrder: SortOrder,
+    sortExpr: string
   }
   export type SortOrder = 'asc' | 'desc'
   export const asc: SortOrder
@@ -113,7 +114,8 @@ declare module '@nozbe/watermelondb/QueryDescription' {
   export function or(...conditions: Condition[]): Or
   export function like(value: string): Comparison
   export function notLike(value: string): Comparison
-  export function sortBy(sortColumn: ColumnName, sortOrder?: SortOrder): SortBy
+  export function sortBy(sortColumn: ColumnName, sortOrder: SortOrder): SortBy
+  export function unsafeSortByExpr(sortExpr: string, sortOrder?: SortOrder): SortBy
   export function take(count: number): Take
   export function skip(count: number): Skip
   export function experimentalJoinTables(tables: TableName<any>[]): Join
