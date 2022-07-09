@@ -32,10 +32,14 @@ const recordsToMarkAsSynced = (
         )
         return
       }
+<<<<<<< HEAD
       let publishedToServer = true
       if (publishedIds) {
         publishedToServer = publishedIds[i] && publishedIds[i] !== '0' ? true : false
       }
+=======
+      const publishedToServer = publishedIds[i] && publishedIds[i] !== '0'
+>>>>>>> f243eb663dac99b00ff5fc9496a32ee5580e5cea
       if (areRecordsEqual(record._raw, raw) && !rejectedIds.has(id) && publishedToServer) {
         syncedRecords.push(record)
       }
