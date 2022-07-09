@@ -127,10 +127,10 @@ const buildTasks = (options) => {
           //   title: 'check flow',
           //   task: () => execa('yarn', ['flow']),
           // },
-          {
-            title: 'check eslint',
-            task: () => execa('yarn', ['eslint']),
-          },
+          // {
+          //   title: 'check eslint',
+          //   task: () => execa('yarn', ['eslint']),
+          // },
         ]
       : [
           {
