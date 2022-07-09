@@ -13,6 +13,7 @@ import { IdMappingModel } from '../../Database/IdMapping'
 const recordsToMarkAsSynced = (
   { changes, affectedRecords }: SyncLocalChanges,
   allRejectedIds: SyncRejectedIds,
+  published?: ?SyncPublishedRecords,
 ): Model[] => {
   const syncedRecords = []
 
@@ -21,7 +22,8 @@ const recordsToMarkAsSynced = (
     const raws = created.concat(updated)
     const rejectedIds = new Set(allRejectedIds[(table: any)])
 
-    raws.forEach((raw) => {
+    const publishedIds = published[(table: any)]
+    raws.forEach((raw, i) => {
       const { id } = raw
       const record = affectedRecords.find((model) => model.id === id && model.table === table)
       if (!record) {
@@ -30,7 +32,8 @@ const recordsToMarkAsSynced = (
         )
         return
       }
-      if (areRecordsEqual(record._raw, raw) && !rejectedIds.has(id)) {
+      const publishedToServer = publishedIds[i] && publishedIds[i] !== '0'
+      if (areRecordsEqual(record._raw, raw) && !rejectedIds.has(id) && publishedToServer) {
         syncedRecords.push(record)
       }
     })
@@ -39,23 +42,22 @@ const recordsToMarkAsSynced = (
 }
 
 const recordsToSaveMapping = (
-  { changes, affectedRecords}: SyncLocalChanges,
-  published?: ?SyncPublishedRecords
+  { changes, affectedRecords }: SyncLocalChanges,
+  published?: ?SyncPublishedRecords,
 ): any[] => {
-  const mappings = [];
+  const mappings = []
   if (published) {
     Object.keys(changes).forEach((table) => {
-      const { created } = changes[(table: any)];
-      const publishedIds = published[(table: any)];
-  
+      const { created } = changes[(table: any)]
+      const publishedIds = published[(table: any)]
+
       if (publishedIds?.length > 0) {
         created.forEach((raw, index) => {
-          const mapping = { localId: raw.id, remoteId: publishedIds[index], table: table};
+          const mapping = { localId: raw.id, remoteId: publishedIds[index], table: table }
           mappings.push(mapping)
         })
       }
-
-    });
+    })
   }
   return mappings
 }
@@ -77,14 +79,18 @@ export default function markLocalChangesAsSynced(
   db: Database,
   syncedLocalChanges: SyncLocalChanges,
   rejectedIds?: ?SyncRejectedIds,
-  published?: ?SyncPublishedRecords
+  published?: ?SyncPublishedRecords,
 ): Promise<void> {
   return db.write(async () => {
     // update and destroy records concurrently
     await Promise.all([
       db.batch(
-        ...recordsToMarkAsSynced(syncedLocalChanges, rejectedIds || {}).map(prepareMarkAsSynced),
-        ...recordsToSaveMapping(syncedLocalChanges, published).map(mapping => (prepareCreateMapping(db, mapping.table, mapping.remoteId, mapping.localId)))
+        ...recordsToMarkAsSynced(syncedLocalChanges, rejectedIds || {}, published || {}).map(
+          prepareMarkAsSynced,
+        ),
+        ...recordsToSaveMapping(syncedLocalChanges, published).map((mapping) =>
+          prepareCreateMapping(db, mapping.table, mapping.remoteId, mapping.localId),
+        ),
       ),
       ...destroyDeletedRecords(db, syncedLocalChanges, rejectedIds || {}),
     ])
