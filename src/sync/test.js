@@ -1902,9 +1902,9 @@ describe('idmapping', () => {
       pushChanges: jest.fn(async () => {
         return {
           published: {
-            mock_projects: ['project2', 'project1'],
-            mock_tasks: ['task1'],
-            mock_comments: ['comment1'],
+            mock_projects: ['project2', 'project1', 'pUpdated'],
+            mock_tasks: ['task1', 'tUpdated'],
+            mock_comments: ['comment1', 'cUpdated'],
           },
         }
       }),
@@ -1921,7 +1921,13 @@ describe('idmapping', () => {
 
     await database.write(() => tCreated.markAsDeleted())
 
-    const pushChanges = jest.fn()
+    const pushChanges = jest.fn(async () => {
+      return {
+        published: {
+          mock_projects: ['project1'],
+        },
+      }
+    })
     await synchronize({ database, pullChanges, pushChanges })
 
     const expectedChanges = makeChangeSet({
