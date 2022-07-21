@@ -42,31 +42,33 @@ function replaceRaw(record: Model, dirtyRaw: DirtyRaw): void {
   record._raw = sanitizedRaw(dirtyRaw, record.collection.schema)
 }
 
-export function prepareCreateFromRaw<T: Model>(collection: Collection<T>, dirtyRaw: DirtyRaw): Model[] {
+export function prepareCreateFromRaw<T: Model>(
+  collection: Collection<T>,
+  dirtyRaw: DirtyRaw,
+): Model[] {
   // TODO: Think more deeply about this - it's probably unnecessary to do this check, since it would
   // mean malicious sync server, which is a bigger problem
   invariant(
     !Object.prototype.hasOwnProperty.call(dirtyRaw, '__proto__'),
     'Malicious dirtyRaw detected - contains a __proto__ key',
   )
-  const { database, table, modelClass } = collection;
-  const useIdMapping = database.useIdMapping;
+  const { database, table, modelClass } = collection
+  const useIdMapping = database.useIdMapping
   const raw = Object.assign({}, dirtyRaw, { _status: 'synced', _changed: '' }) // faster than object spread
 
   // if we're using id mapping, then we want the client to generate a random local ID
-  const remoteId = raw.id;
+  const remoteId = raw.id
   if (useIdMapping) {
-    raw.id = randomId();
+    raw.id = randomId()
   }
-  const newRecord = collection.prepareCreateFromDirtyRaw(raw);
+  const newRecord = collection.prepareCreateFromDirtyRaw(raw)
 
   if (useIdMapping) {
     const { database, table } = collection
-    const mappingRecord = prepareCreateMapping(database, table, remoteId, newRecord.id);
-    return [newRecord, mappingRecord];
-  }
-  else {
-    return [newRecord];
+    const mappingRecord = prepareCreateMapping(database, table, remoteId, newRecord.id)
+    return [newRecord, mappingRecord]
+  } else {
+    return [newRecord]
   }
 }
 
@@ -106,12 +108,17 @@ export function prepareUpdateFromRaw<T: Model>(
         resolved: { ...record._raw },
       })
     }
-  })
+  }, true)
 }
 
-export function prepareCreateMapping<T: IdMappingModel>(database: Database, table:string, remoteId: string, localId: string): IdMappingModel {
-  const mappingRecord = database.idMappingTable.prepareCreateMapping(localId, remoteId, table);
-  return mappingRecord;
+export function prepareCreateMapping<T: IdMappingModel>(
+  database: Database,
+  table: string,
+  remoteId: string,
+  localId: string,
+): IdMappingModel {
+  const mappingRecord = database.idMappingTable.prepareCreateMapping(localId, remoteId, table)
+  return mappingRecord
 }
 
 export function prepareMarkAsSynced<T: Model>(record: T): T {

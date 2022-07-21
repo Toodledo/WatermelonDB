@@ -19,7 +19,7 @@ import type IdMapping from './IdMapping'
 type DatabaseProps = $Exact<{
   adapter: DatabaseAdapter,
   modelClasses: Array<Class<Model>>,
-  idMapping: Boolean
+  idMapping: Boolean,
 }>
 
 let experimentalAllowsFatalError = false
@@ -63,13 +63,13 @@ export default class Database {
         )
     }
     if (idMapping) {
-      const IdMapping = require('./IdMapping').default;
-      this.idMappingTable = new IdMapping(this);
-      this.useIdMapping = true;
+      const IdMapping = require('./IdMapping').default
+      this.idMappingTable = new IdMapping(this)
+      this.useIdMapping = true
     }
     this.adapter = new DatabaseAdapterCompat(adapter)
     this.schema = adapter.schema
-    this.collections = new CollectionMap(this, modelClasses) 
+    this.collections = new CollectionMap(this, modelClasses)
   }
 
   get<T: Model>(tableName: TableName<T>): Collection<T> {
@@ -111,7 +111,9 @@ export default class Database {
       const preparedState = record._preparedState
       if (!preparedState) {
         invariant(record._raw._status !== 'disposable', `Cannot batch a disposable record`)
-        throw new Error(`Cannot batch a record that doesn't have a prepared create/update/delete`)
+        //throw new Error(`Cannot batch a record that doesn't have a prepared create/update/delete`)
+        console.log(`Cannot batch a record that doesn't have a prepared create/update/delete`)
+        return
       }
 
       const raw = record._raw
@@ -158,9 +160,8 @@ export default class Database {
     changeNotificationsEntries.forEach((notification) => {
       const [table, changeSet]: [TableName<any>, CollectionChangeSet<any>] = (notification: any)
       if (table == 'id_mapping') {
-        this.idMappingTable._collection._applyChangesToCache(changeSet);
-      }
-      else {
+        this.idMappingTable._collection._applyChangesToCache(changeSet)
+      } else {
         this.collections.get(table)._applyChangesToCache(changeSet)
       }
     })
@@ -175,9 +176,8 @@ export default class Database {
     changeNotificationsEntries.forEach((notification) => {
       const [table, changeSet]: [TableName<any>, CollectionChangeSet<any>] = (notification: any)
       if (table == 'id_mapping') {
-        this.idMappingTable._collection._notify(changeSet);
-      }
-      else {
+        this.idMappingTable._collection._notify(changeSet)
+      } else {
         this.collections.get(table)._notify(changeSet)
       }
     })

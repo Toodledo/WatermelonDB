@@ -83,6 +83,9 @@ export function convertRelatedLocalToRemoteIds(
   for (const table in relatedRecords) {
     const relation = relatedRecords[table]
     const localId = raw[relation.columnName]
+    if (!localId) {
+      continue
+    }
     //first look for the remoteid in the existing saved mappings
     let remoteId = relation.mappings[localId]
 
@@ -101,6 +104,9 @@ export function convertRelatedLocalToRemoteIds(
     }
     if (remoteId) {
       raw[relation.columnName] = remoteId
+    } else {
+      raw[relation.columnName] = -1
+      raw['_' + relation.columnName] = localId
     }
   }
 }
@@ -178,7 +184,7 @@ export async function convertIdsForPushedChanges(
       // for created records, we can just remove the localid because it will get created on the server
       // then we'll need to make sure to save the server assigned ID once it gets created
       const mappedCreated = created.map((raw) => {
-        const newCreated = Object.assign({}, raw)
+        const newCreated = Object.assign({}, raw, { ref: raw.id })
         delete newCreated.id
         convertRelatedLocalToRemoteIds(newCreated, relatedRemoteIds, {})
         return newCreated
@@ -192,7 +198,7 @@ export async function convertIdsForPushedChanges(
           )
           return
         }
-        const newUpdated = Object.assign({}, raw, { id: remoteId }) // make sure we map the remote ID
+        const newUpdated = Object.assign({}, raw, { id: remoteId, ref: id }) // make sure we map the remote ID
         convertRelatedLocalToRemoteIds(newUpdated, relatedRemoteIds, {})
         return newUpdated
       })
