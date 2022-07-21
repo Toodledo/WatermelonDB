@@ -1933,7 +1933,13 @@ describe('idmapping', () => {
     const expectedChanges = makeChangeSet({
       mock_projects: {
         updated: [
-          { id: 'project1', name: 'updated on client', _changed: 'name', _status: 'updated' },
+          {
+            id: 'project1',
+            name: 'updated on client',
+            _changed: 'name',
+            _status: 'updated',
+            ref: 'pCreated1',
+          },
         ],
       },
       mock_tasks: { deleted: ['task1'] },
@@ -2132,6 +2138,7 @@ describe('idmapping', () => {
                 id: 'new_task',
                 name: 'task updated on client',
                 project_id: 'new_project',
+                ref: localtaskid,
               }),
             ],
           },
