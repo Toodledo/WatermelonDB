@@ -83,7 +83,7 @@ export function convertRelatedLocalToRemoteIds(
   for (const table in relatedRecords) {
     const relation = relatedRecords[table]
     const localId = raw[relation.columnName]
-    if (!localId) {
+    if (!localId || localId === '0') {
       continue
     }
     //first look for the remoteid in the existing saved mappings
