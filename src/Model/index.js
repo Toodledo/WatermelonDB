@@ -134,8 +134,10 @@ export default class Model {
     return this
   }
 
-  prepareDestroyPermanently(): this {
-    invariant(!this._preparedState, `Cannot destroy permanently a record with pending changes`)
+  prepareDestroyPermanently(fromRaw?: boolean): this {
+    if (!fromRaw) {
+      invariant(!this._preparedState, `Cannot destroy permanently a record with pending changes`)
+    }
     this.__ensureNotDisposable(`Model.prepareDestroyPermanently()`)
     this._raw._status = 'deleted'
     this._preparedState = 'destroyPermanently'
