@@ -64,7 +64,6 @@ export function convertRelatedRemoteToLocalIds(
       logError(
         `[Sync] Server wants client to map a record ${table}#${remoteId} that doesn't exist locally. Will just ignore the mapping on the client, but this is probably a bug.`,
       )
-      return
     }
     if (localId) {
       raw[relation.columnName] = localId
@@ -100,7 +99,6 @@ export function convertRelatedLocalToRemoteIds(
       logError(
         `[Sync] Client wants to map a record ${table}#${localId} that doesn't exist on the server.`,
       )
-      return
     }
     if (remoteId) {
       raw[relation.columnName] = remoteId
