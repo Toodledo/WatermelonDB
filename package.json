@@ -1,7 +1,7 @@
 {
   "name": "@toodledo/watermelondb",
   "description": "Build powerful React Native and React web apps that scale from hundreds to tens of thousands of records and remain fast. Forked to add support for global/remote ID mapping",
-  "version": "0.27.3",
+  "version": "0.27.4",
   "scripts": {
     "build": "NODE_ENV=production node ./scripts/make.js",
     "dev": "NODE_ENV=development node ./scripts/make.js",
