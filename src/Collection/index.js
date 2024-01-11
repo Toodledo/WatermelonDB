@@ -68,7 +68,9 @@ export default class Collection<Record: Model> {
           })
         } else {
           // $FlowFixMe
-          observer.error(result.error)
+          //observer.error(result.error)
+          console.log('record not found; returning null', result.error)
+          observer.next(null);
         }
       })
       return () => {
