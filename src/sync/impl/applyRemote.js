@@ -15,7 +15,7 @@ import type {
   SyncLog,
   SyncConflictResolver,
 } from '../index'
-import { prepareCreateFromRaw, prepareUpdateFromRaw } from './helpers'
+import { prepareCreateFromRaw, prepareUpdateFromRaw, prepareCreateMapping } from './helpers'
 import { getAllRelatedLocalIdsForChanges, convertRelatedRemoteToLocalIds } from './idMapper'
 
 const idsForChanges = ({ created, updated, deleted }: SyncTableChangeSet): RecordId[] => {
@@ -27,6 +27,21 @@ const idsForChanges = ({ created, updated, deleted }: SyncTableChangeSet): Recor
     ids.push(record.id)
   })
   return ids.concat(deleted)
+}
+
+const refsForChanges = ({ created, updated, deleted }: SyncTableChangeSet): RecordId[] => {
+  const ids = {}
+  created.forEach((record) => {
+    if (record.ref) {
+      ids[record.id] = record.ref;
+    }
+  })
+  updated.forEach((record) => {
+    if (record.ref) {
+      ids[record.id] = record.ref;
+    }
+  })
+  return ids;
 }
 
 const fetchRecordsForChanges = <T: Model>(
@@ -75,9 +90,23 @@ async function recordsToApplyRemoteChangesTo<T: Model>(
   let relatedRecords = null
   if (database.useIdMapping) {
     remoteToLocalIdMap = await database.idMappingTable.getMappingsForRemoteIds(ids, table)
-    // get local IDs to search for
-    ids = Object.values(remoteToLocalIdMap)
+    let refMap = refsForChanges(changes);
+    let finalIds = [];
 
+    for (let remoteId of ids) {
+      // Check if there's a localId for the remoteId
+      if (remoteToLocalIdMap[remoteId]) {
+        finalIds.push(remoteToLocalIdMap[remoteId]);
+      } else {
+        // If no localId, get the id from the ref field of the changes object
+        if (refMap[remoteId]) {
+          finalIds.push(refMap[remoteId]);
+        }
+      }
+    }
+
+    // Set the ids to the final list of ids
+    ids = finalIds;
     deletedIds = await database.idMappingTable.getLocalIds(deletedIds, table)
     relatedRecords = await getAllRelatedLocalIdsForChanges(collection, changes)
   }
@@ -175,6 +204,18 @@ function prepareApplyRemoteChangesToCollection<T: Model>(
     let id = raw.id
     if (useIdMapping) {
       id = remoteToLocalIdMap[id] // if we are using id mapping, then first get the localid
+      if (!id && raw.ref) {
+        id = raw.ref;
+        const currentRecord = findRecord(id, records)
+        // If there's no ID in the mapping table, but there is a ref 
+        // and that record exists locally, then let's add it to the mapping table.
+        // This occurs if the item was added on the server, but the client connection failed
+        // before receiving the response
+        if (currentRecord) {
+          const mappingRecord = prepareCreateMapping(database, table, raw.id, raw.ref)
+          recordsToBatch.push(mappingRecord);
+        }
+      }
       convertRelatedRemoteToLocalIds(raw, relatedRecords, preparedIdMappings)
     }
 
