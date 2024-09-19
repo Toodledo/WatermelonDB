@@ -1,7 +1,6 @@
 #import "JSLockPerfHack.h"
 #import <UIKit/UIKit.h>
 #import <JavaScriptCore/JavaScriptCore.h>
-#import <React-jsc/JSCRuntime.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
 
