@@ -11,7 +11,7 @@ import type {
   SqliteDispatcherMethod,
 } from '../type'
 
-const { DatabaseBridge } = NativeModules
+const { DatabaseBridge, JSIInstaller } = NativeModules
 
 class SqliteNativeModulesDispatcher implements SqliteDispatcher {
   _tag: ConnectionTag
@@ -97,6 +97,17 @@ export const makeDispatcher = (
 const initializeJSI = () => {
   if (global.nativeWatermelonCreateAdapter) {
     return true
+  }
+
+  if (JSIInstaller.install) {
+    try {
+      JSIInstaller.install();
+      return !!global.nativeWatermelonCreateAdapter
+    }
+    catch (e) {
+      logger.error('[SQLite] Failed to initialize JSI')
+      logger.error(e)
+    }
   }
 
   if (DatabaseBridge.initializeJSI) {
