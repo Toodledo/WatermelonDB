@@ -99,7 +99,7 @@ const initializeJSI = () => {
     return true
   }
 
-  if (JSIInstaller.install) {
+  if (JSIInstaller && JSIInstaller.install) {
     try {
       JSIInstaller.install();
       return !!global.nativeWatermelonCreateAdapter
