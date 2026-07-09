@@ -99,14 +99,23 @@ const initializeJSI = () => {
     return true
   }
 
-  if (JSIInstaller && JSIInstaller.install) {
-    try {
-      JSIInstaller.install();
-      return !!global.nativeWatermelonCreateAdapter
+  if (JSIInstaller) {
+    // On bridgeless RN (new architecture), merely accessing the JSIInstaller
+    // module installs the JSI bindings: RCTTurboModuleManager invokes
+    // installJSIBindingsWithRuntime: when the module is created (see
+    // JSIInstallerModule.mm). No method call is needed.
+    if (global.nativeWatermelonCreateAdapter) {
+      return true
     }
-    catch (e) {
-      logger.error('[SQLite] Failed to initialize JSI')
-      logger.error(e)
+    if (JSIInstaller.install) {
+      try {
+        JSIInstaller.install();
+        return !!global.nativeWatermelonCreateAdapter
+      }
+      catch (e) {
+        logger.error('[SQLite] Failed to initialize JSI')
+        logger.error(e)
+      }
     }
   }
 
