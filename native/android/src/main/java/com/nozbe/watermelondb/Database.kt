@@ -67,8 +67,8 @@ class Database(
                         else -> throw IllegalArgumentException("Bad query arg type: ${arg::class.java.canonicalName}")
                     }
                 }
-                SQLiteCursor(driver, editTable, query)
-            }, sql, rawArgs, null, null
+                SQLiteCursor(driver!!, editTable ?: "", query)
+            }, sql, rawArgs, "", null
         )
     }
 

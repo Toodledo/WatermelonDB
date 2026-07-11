@@ -180,7 +180,7 @@ class DatabaseBridge(private val reactContext: ReactApplicationContext) :
                 }
             }
         } catch (e: SQLException) {
-            promise.reject(functionName, e)
+            promise.reject(functionName ?: "unknown", e)
         } finally {
             Trace.endSection()
         }
@@ -222,8 +222,7 @@ class DatabaseBridge(private val reactContext: ReactApplicationContext) :
     override fun onCatalystInstanceDestroy() {
         // NOTE: See Database::install() for explanation
         super.onCatalystInstanceDestroy()
-        reactContext.catalystInstance.reactQueueConfiguration.jsQueueThread.runOnQueue {
-            try {
+        try {
                 val clazz = Class.forName("com.nozbe.watermelondb.jsi.WatermelonJSI")
                 val method = clazz.getDeclaredMethod("onCatalystInstanceDestroy")
                 method.invoke(null)
@@ -232,6 +231,5 @@ class DatabaseBridge(private val reactContext: ReactApplicationContext) :
                     Logger.getLogger("DB_Bridge").info("Could not find JSI onCatalystInstanceDestroy")
                 }
             }
-        }
     }
 }
