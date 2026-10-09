@@ -6,8 +6,6 @@ import type { Database, Model, TableName } from '../..'
 
 import { prepareMarkAsSynced, prepareCreateMapping } from './helpers'
 import type { SyncLocalChanges, SyncRejectedIds, SyncPublishedRecords } from '../index'
-import { createDebuggerStatement } from 'typescript'
-import { consoleTestResultHandler } from 'tslint/lib/test'
 import { IdMappingModel } from '../../Database/IdMapping'
 
 const recordsToMarkAsSynced = (

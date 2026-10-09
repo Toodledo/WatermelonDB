@@ -65,6 +65,11 @@ include_directories(
 # set(CMAKE_CXX_FLAGS_DEBUG "-Os") # comment out for JSI debugging
 set(CMAKE_CXX_FLAGS_RELEASE "-Os")
 
+# 16 KB page size (Android 15+; required by Google Play for targetSdk 35+).
+# NDK r27 still links 4 KB-aligned by default, which makes the .so unloadable
+# on 16 KB-page devices -- force the larger max-page-size.
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384")
+
 # TODO: Configure sqlite with compile-time options
 # https://www.sqlite.org/compile.html
 
